@@ -853,48 +853,88 @@
     });
     setTimeout(tryPreloadFullVideoCaptions, 1500);
 
-    // 🚀 核心 2：原生字幕实时捕获与零延迟平滑渲染 (绝不展示“正在翻译”)
+    // 🚀 核心 2：原生字幕精准定位与无损外置浮层渲染 (100% 保护播放器所有图标)
+    let subtitleOverlay = null;
+
+    function getOrCreateSubtitleOverlay() {
+      if (subtitleOverlay && document.body.contains(subtitleOverlay)) return subtitleOverlay;
+      const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+      if (!player) return null;
+
+      subtitleOverlay = document.createElement('div');
+      subtitleOverlay.id = 'llm-yt-custom-subtitles';
+      subtitleOverlay.style.cssText = `
+        position: absolute !important;
+        bottom: 70px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 50 !important;
+        pointer-events: none !important;
+        text-align: center !important;
+        max-width: 85% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 4px !important;
+        font-family: "YouTube Noto", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+      `;
+      player.appendChild(subtitleOverlay);
+      return subtitleOverlay;
+    }
+
+    function renderBilingualSub(zhText, enText) {
+      const overlay = getOrCreateSubtitleOverlay();
+      if (!overlay) return;
+
+      if (!enText && !zhText) {
+        overlay.innerHTML = '';
+        return;
+      }
+
+      overlay.innerHTML = `
+        <div style="background: rgba(8, 8, 8, 0.85); backdrop-filter: blur(4px); padding: 4px 14px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: inline-flex; flex-direction: column; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
+          ${zhText ? `<div style="color: #ffffff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); line-height: 1.35; letter-spacing: 0.5px;">${escapeHtml(zhText)}</div>` : ''}
+          ${enText ? `<div style="color: #e2e8f0; font-size: 14px; opacity: 0.9; text-shadow: 0 1px 3px rgba(0,0,0,0.8); line-height: 1.3; margin-top: 2px;">${escapeHtml(enText)}</div>` : ''}
+        </div>
+      `;
+    }
+
     const captionObserver = new MutationObserver(() => {
       if (currentSettings.enableVideoSubtitles === false) return;
 
-      const segments = document.querySelectorAll('.ytp-caption-segment');
-      if (!segments || segments.length === 0) return;
+      // ⭐️ 核心防线：必须且仅在真实字幕窗口内提取字幕，绝对不触碰任何控制栏与 tooltip！
+      const segments = document.querySelectorAll('#movie_player .caption-window .ytp-caption-segment, #movie_player .ytp-caption-window-bottom .ytp-caption-segment');
+      if (!segments || segments.length === 0) {
+        if (lastCaptionText) {
+          lastCaptionText = '';
+          renderBilingualSub('', '');
+        }
+        return;
+      }
+
+      // 隐藏原生小字幕文字 (避免重叠)，但绝不破坏任何 DOM 节点
+      const captionWindow = document.querySelector('#movie_player .caption-window, #movie_player .ytp-caption-window-bottom');
+      if (captionWindow) {
+        captionWindow.style.opacity = '0';
+      }
 
       let rawText = '';
       segments.forEach(seg => {
-        if (!seg.classList.contains('llm-injected')) {
-          rawText += seg.textContent + ' ';
-        }
+        rawText += seg.textContent + ' ';
       });
       const fullText = rawText.trim();
       if (!fullText || fullText.length < 2 || fullText === lastCaptionText) return;
-
-      const mainSegment = segments[0];
-      mainSegment.classList.add('llm-injected');
-
-      for (let i = 1; i < segments.length; i++) {
-        segments[i].style.display = 'none';
-      }
 
       // 1. 如果已预翻译命中：0.00ms 纯零延迟瞬间呈现！
       if (subtitleMemCache.has(fullText)) {
         lastCaptionText = fullText;
         const cachedTrans = subtitleMemCache.get(fullText);
-        mainSegment.innerHTML = `
-          <div class="llm-yt-sub-wrapper">
-            <div class="llm-yt-zh-text">${escapeHtml(cachedTrans)}</div>
-            <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
-          </div>
-        `;
+        renderBilingualSub(cachedTrans, fullText);
         return;
       }
 
-      // 2. 如果未命中预翻译：先干净显示原文，绝对不显示“正在翻译...”！
-      mainSegment.innerHTML = `
-        <div class="llm-yt-sub-wrapper">
-          <div class="llm-yt-en-text" style="font-size: 1.15em; font-weight: 600;">${escapeHtml(fullText)}</div>
-        </div>
-      `;
+      // 2. 如果未命中预翻译：先干净显示原生英文，绝不显示“正在翻译...”！
+      renderBilingualSub('', fullText);
 
       if (debounceTimer) clearTimeout(debounceTimer);
 
@@ -914,30 +954,14 @@
           settings: currentSettings,
           signal: subAbortCtrl.signal,
           onChunk: (chunk, trans) => {
-            // 流式翻译到达时，平滑注入中文大字，优雅过渡
-            mainSegment.innerHTML = `
-              <div class="llm-yt-sub-wrapper">
-                <div class="llm-yt-zh-text">${escapeHtml(trans)}</div>
-                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
-              </div>
-            `;
+            renderBilingualSub(trans, fullText);
           },
           onDone: (trans) => {
-            mainSegment.innerHTML = `
-              <div class="llm-yt-sub-wrapper">
-                <div class="llm-yt-zh-text">${escapeHtml(trans)}</div>
-                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
-              </div>
-            `;
+            renderBilingualSub(trans, fullText);
             subtitleMemCache.set(fullText, trans);
           },
           onError: () => {
-            // 失败时保持原文
-            mainSegment.innerHTML = `
-              <div class="llm-yt-sub-wrapper">
-                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
-              </div>
-            `;
+            renderBilingualSub('', fullText);
           }
         });
       }, delay);

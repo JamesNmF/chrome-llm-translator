@@ -406,7 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (btnOpenTwin) {
-    btnOpenTwin.addEventListener('click', openTwinMirrorWorkbench);
+    btnOpenTwin.addEventListener('click', () => sendWebTranslationCommand('side_by_side'));
   }
 
   if (btnOpenDocx) {
