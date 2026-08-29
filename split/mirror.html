@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>双生分屏阅读器 - 简易LLM翻译插件</title>
+  <link rel="stylesheet" href="mirror.css">
+</head>
+<body>
+  <div class="twin-app-root">
+    <!-- 顶部导航工具栏 -->
+    <header class="twin-topbar">
+      <div class="twin-topbar-left">
+        <img src="../icons/icon48.png" alt="Logo" class="twin-logo">
+        <span class="twin-title">🪟 网页双生分屏阅读器</span>
+        <span class="twin-sync-badge" id="sync-status">🔗 左右同轴同步滚动: 已开启</span>
+      </div>
+
+      <div class="twin-topbar-center">
+        <div class="url-input-wrap">
+          <input type="text" id="target-url-input" placeholder="输入或粘贴网页网址 (如 https://...)" class="url-input">
+          <button class="btn btn-primary" id="btn-load-url">🚀 加载网页</button>
+        </div>
+      </div>
+
+      <div class="twin-topbar-right">
+        <button class="btn btn-secondary" id="btn-reload-both" title="同时刷新两边">🔄 刷新两边</button>
+        <button class="btn btn-secondary" id="btn-swap-views" title="左右对调">⇄ 左右对调</button>
+      </div>
+    </header>
+
+    <!-- 主体双分屏视口 -->
+    <main class="twin-viewport-container" id="viewport-container">
+      <!-- 左侧：原始网页 (英文) -->
+      <div class="twin-pane" id="left-pane">
+        <div class="pane-tag">📄 左侧: 原始网页 (Original)</div>
+        <iframe id="left-frame" class="twin-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+      </div>
+
+      <!-- 中间可拖拽分界线 -->
+      <div class="twin-resizer" id="twin-resizer" title="按住左右拖拽调节比例"></div>
+
+      <!-- 右侧：翻译后镜像 (中文) -->
+      <div class="twin-pane" id="right-pane">
+        <div class="pane-tag">✨ 右侧: AI 全文译本 (Translated)</div>
+        <iframe id="right-frame" class="twin-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+      </div>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="twin-bottombar">
+      <span>💡 两侧网页 100% 像素级同轴同步滚动，鼠标在任何一侧滑动滚轮，两边同时上下翻滚</span>
+      <span id="page-status-text">就绪</span>
+    </footer>
+  </div>
+
+  <script type="module" src="mirror.js"></script>
+</body>
+</html>
