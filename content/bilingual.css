@@ -69,27 +69,14 @@ h6 + .llm-bilingual-wrapper {
    2. 状态机控制系统 (Global State Machine)
    ========================================================= */
 
-/* 原文模式：隐藏所有注入译文 */
-[data-llm-state="origin"] .llm-bilingual-wrapper {
-  display: none !important;
-}
-
-/* 仅译文模式：显示译文，无缝平替并隐藏前一个原文段落 */
+/* 原文模式与仅译文模式控制 */
+[data-llm-state="origin"] .llm-bilingual-wrapper,
 [data-llm-state="translation"] .llm-bilingual-wrapper {
-  display: block !important;
-  margin-top: 0 !important;
+  display: none !important;
 }
 
-[data-llm-state="translation"] p:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h1:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h2:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h3:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h4:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h5:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] h6:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] li:has(+ .llm-bilingual-wrapper),
-[data-llm-state="translation"] blockquote:has(+ .llm-bilingual-wrapper) {
-  display: none !important;
+[data-llm-state="dual"] .llm-bilingual-wrapper {
+  display: block !important;
 }
 
 /* =========================================================
