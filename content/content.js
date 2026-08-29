@@ -772,11 +772,13 @@
   });
 
   // ==========================================
-  // 6. YouTube / 网页视频原生字幕深度接管与自适应大字号替换
+  // 6. YouTube / 网页视频原生字幕深度接管与毫秒级极速流式翻译
   // ==========================================
   function initVideoSubtitleObserver() {
     let lastCaptionText = '';
     let subAbortCtrl = null;
+    let debounceTimer = null;
+    const subtitleMemCache = new Map();
 
     const captionObserver = new MutationObserver(() => {
       if (currentSettings.enableVideoSubtitles === false) return;
@@ -784,27 +786,47 @@
       const segments = document.querySelectorAll('.ytp-caption-segment');
       if (!segments || segments.length === 0) return;
 
-      // 提取当前完整字幕文本
-      let fullText = '';
+      // 提取当前字幕文本 (排除插件已注入的内容)
+      let rawText = '';
       segments.forEach(seg => {
         if (!seg.classList.contains('llm-injected')) {
-          fullText += seg.textContent + ' ';
+          rawText += seg.textContent + ' ';
         }
       });
-      fullText = fullText.trim();
+      const fullText = rawText.trim();
+      if (!fullText || fullText.length < 2 || fullText === lastCaptionText) return;
 
-      if (fullText && fullText !== lastCaptionText && fullText.length >= 2) {
+      const mainSegment = segments[0];
+      mainSegment.classList.add('llm-injected');
+
+      // 隐藏其他多余原生分段
+      for (let i = 1; i < segments.length; i++) {
+        segments[i].style.display = 'none';
+      }
+
+      // 如果内存缓存已命中，0ms 瞬间渲染！
+      if (subtitleMemCache.has(fullText)) {
+        lastCaptionText = fullText;
+        const cachedTrans = subtitleMemCache.get(fullText);
+        mainSegment.innerHTML = `
+          <div class="llm-yt-sub-wrapper">
+            <div class="llm-yt-zh-text">${escapeHtml(cachedTrans)}</div>
+            <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
+          </div>
+        `;
+        return;
+      }
+
+      // 智能打字机防抖：避免说话过程中每个单词都打断重发 API
+      if (debounceTimer) clearTimeout(debounceTimer);
+
+      // 如果遇到了标点句末，快速触发；否则等待 180ms 聚合整句
+      const isSentenceEnd = /[.?!，。？！]\s*$/.test(fullText);
+      const delay = isSentenceEnd ? 60 : 180;
+
+      debounceTimer = setTimeout(() => {
         lastCaptionText = fullText;
 
-        const mainSegment = segments[0];
-        mainSegment.classList.add('llm-injected');
-
-        // 隐藏其他分段
-        for (let i = 1; i < segments.length; i++) {
-          segments[i].style.display = 'none';
-        }
-
-        // 直接在原生字幕节点内部构造大字号双语容器
         mainSegment.innerHTML = `
           <div class="llm-yt-sub-wrapper">
             <div class="llm-yt-zh-text">正在翻译...</div>
@@ -828,12 +850,17 @@
           },
           onDone: (trans) => {
             if (zhEl) zhEl.textContent = trans;
+            subtitleMemCache.set(fullText, trans);
+            if (subtitleMemCache.size > 200) {
+              const firstKey = subtitleMemCache.keys().next().value;
+              subtitleMemCache.delete(firstKey);
+            }
           },
           onError: () => {
             if (zhEl) zhEl.textContent = fullText;
           }
         });
-      }
+      }, delay);
     });
 
     captionObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
