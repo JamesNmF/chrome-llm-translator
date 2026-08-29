@@ -241,7 +241,15 @@
 
     activeSelectedText = text;
     const mode = preferredMode || currentSettings.defaultMode || 'fluent';
-    const targetLang = currentSettings.targetLang || 'zh-CN';
+    
+    // 智能语种双向互译：如果划选内容是中文且默认目标语言是中文，则自动切换为英文 (en)；外文默认翻译为中文 (zh-CN)
+    const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+    let targetLang = currentSettings.targetLang || 'zh-CN';
+    if (hasChinese && (targetLang === 'zh-CN' || targetLang === 'zh-TW')) {
+      targetLang = 'en';
+    } else if (!hasChinese && (targetLang === 'en' || !targetLang)) {
+      targetLang = 'zh-CN';
+    }
 
     cardModal = document.createElement('div');
     cardModal.className = 'llm-card';
@@ -262,7 +270,7 @@
     cardModal.style.top = `${safeTop}px`;
 
     const modeOptions = Object.values(PROMPT_MODES).map(m => 
-      `<option value="${m.id}" ${m.id === mode ? 'selected' : ''}>${m.icon} ${m.name}</option>`
+      `<option value="${m.id}" ${m.id === mode ? 'selected' : ''}>${m.icon || '✨'} ${m.name}</option>`
     ).join('');
 
     const langOptions = LANGUAGES.map(l => 
