@@ -7,6 +7,7 @@
   const { DEFAULT_SETTINGS, LANGUAGES, PROMPT_MODES, PROVIDERS } = await import(chrome.runtime.getURL('lib/constants.js'));
   const { LLMClient } = await import(chrome.runtime.getURL('lib/llm-client.js'));
   const { BilingualEngine } = await import(chrome.runtime.getURL('lib/bilingual-engine.js'));
+  const { TwinMirrorEngine } = await import(chrome.runtime.getURL('lib/twin-mirror-engine.js'));
 
   let currentSettings = { ...DEFAULT_SETTINGS };
   let currentAbortController = null;
@@ -14,19 +15,21 @@
   let activeSelectedText = '';
   let activeTranslation = '';
 
-  // 初始化双语引擎
+  // 初始化双语引擎与双生分屏引擎
   const bilingualEngine = new BilingualEngine({
     settings: currentSettings,
     onUpdate: () => {
       if (isSplitOpen) renderSplitCards();
     }
   });
+  const twinMirrorEngine = new TwinMirrorEngine({ settings: currentSettings });
 
   // 读取初始配置
   const stored = await chrome.storage.sync.get('settings');
   if (stored.settings) {
     currentSettings = { ...DEFAULT_SETTINGS, ...stored.settings };
     bilingualEngine.updateSettings(currentSettings);
+    twinMirrorEngine.updateSettings(currentSettings);
   }
 
   // 注入双语对照全局样式
@@ -40,6 +43,7 @@
     if (area === 'sync' && changes.settings) {
       currentSettings = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
       bilingualEngine.updateSettings(currentSettings);
+      twinMirrorEngine.updateSettings(currentSettings);
       updateFloatBallVisibility();
     }
   });
@@ -733,22 +737,22 @@
       const state = await bilingualEngine.toggleFullPage();
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
       if (state === 'side_by_side') {
-        openSplitPane();
+        twinMirrorEngine.activate();
       } else {
-        closeSplitPane();
+        twinMirrorEngine.deactivate();
       }
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启左右分屏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     } else if (request.type === 'SET_BILINGUAL_PAGE_VIEW') {
       // 从 Popup 菜单中直接选择：显示原文 / 上下对照 / 左右分栏 / 仅看译文
       const state = await bilingualEngine.setViewState(request.view);
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
       if (state === 'side_by_side') {
-        openSplitPane();
+        twinMirrorEngine.activate();
       } else {
-        closeSplitPane();
+        twinMirrorEngine.deactivate();
       }
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启左右分屏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     }
   });
