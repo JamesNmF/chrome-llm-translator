@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "LLM 翻译官 - AI Translator (测试版)",
+  "name": "简易LLM翻译插件 (测试版)",
   "version": "0.14.0",
   "description": "基于 DeepSeek / OpenAI / Claude / Gemini / Ollama 的全网页双语对照、Word/PDF/EPUB 双语制作与视频字幕助手",
   "icons": {
@@ -10,7 +10,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "LLM 智能翻译官",
+    "default_title": "简易LLM翻译插件",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

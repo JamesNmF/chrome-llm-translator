@@ -1,4 +1,4 @@
-# 🌐 LLM 翻译官 (Chrome Extension v0.14.0 测试版)
+# 🌐 简易LLM翻译插件 (Chrome Extension v0.14.0 测试版)
 
 基于 DeepSeek / OpenAI / Claude / Gemini / Ollama / Chrome Built-in AI 的 Chrome 网页沉浸式双语对照、YouTube 视频双语字幕、Word (.docx) 双语文档制作、PDF 双语阅读（支持 Vision 多模态扫描件识别）、专业术语库与 EPUB 电子书制作扩展。
 
