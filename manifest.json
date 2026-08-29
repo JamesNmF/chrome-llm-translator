@@ -1,0 +1,80 @@
+{
+  "manifest_version": 3,
+  "name": "LLM 智能翻译官 - AI Translator",
+  "version": "1.2.0",
+  "description": "基于 DeepSeek / OpenAI / Claude / Gemini / Ollama 的全网页双语对照、PDF 论文双语阅读、EPUB 电子书制作与划词精析助手",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "LLM 智能翻译官",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*",
+        "content/*",
+        "icons/*",
+        "pdf/*",
+        "epub/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Alt+T",
+        "mac": "Alt+T"
+      },
+      "description": "翻译网页选中文本"
+    },
+    "toggle-bilingual-page": {
+      "suggested_key": {
+        "default": "Alt+A",
+        "mac": "Alt+A"
+      },
+      "description": "切换全网页沉浸式双语对照翻译"
+    }
+  }
+}

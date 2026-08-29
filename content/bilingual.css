@@ -1,0 +1,196 @@
+/* =========================================================
+   沉浸式双语网页对照翻译 - 原网页字体排版 100% 完美无缝融合系统
+   ========================================================= */
+
+/* 1. 双语译文容器：全面继承原网页宿主元素字体、字号、字重、行高与颜色 */
+.llm-bilingual-wrapper {
+  display: block;
+  /* 相对间距：随原文字号 (em) 自动等比动态缩放，标题大间距、正文适中、小字紧凑 */
+  margin-top: 0.35em !important;
+  margin-bottom: 0.65em !important;
+  
+  /* 核心继承体系：100% 继承原网站排版特性 */
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  font-style: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  text-align: inherit !important;
+  text-indent: inherit !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  
+  /* 颜色继承：完美自适应暗黑模式 (Dark Mode) 与明亮模式，不破坏原站配色 */
+  color: inherit !important;
+  position: relative;
+  box-sizing: border-box;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+  user-select: text;
+}
+
+/* 列表与表格特殊兼容 */
+li > .llm-bilingual-wrapper {
+  margin-top: 0.2em !important;
+  margin-bottom: 0.4em !important;
+  list-style: none !important;
+}
+
+td > .llm-bilingual-wrapper,
+th > .llm-bilingual-wrapper {
+  margin-top: 0.2em !important;
+  margin-bottom: 0.2em !important;
+}
+
+/* 标题兼容：标题下的译文保持与原标题完全相同的层级视觉 */
+h1 + .llm-bilingual-wrapper,
+h2 + .llm-bilingual-wrapper,
+h3 + .llm-bilingual-wrapper,
+h4 + .llm-bilingual-wrapper,
+h5 + .llm-bilingual-wrapper,
+h6 + .llm-bilingual-wrapper {
+  margin-top: 0.25em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.llm-bilingual-inner {
+  display: inline;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  font-style: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  color: inherit !important;
+}
+
+/* =========================================================
+   2. 状态机控制系统 (Global State Machine)
+   ========================================================= */
+
+/* 原文模式：隐藏所有注入译文 */
+[data-llm-state="origin"] .llm-bilingual-wrapper {
+  display: none !important;
+}
+
+/* 仅译文模式：显示译文，无缝平替并隐藏前一个原文段落 */
+[data-llm-state="translation"] .llm-bilingual-wrapper {
+  display: block !important;
+  margin-top: 0 !important;
+}
+
+[data-llm-state="translation"] p:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h1:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h2:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h3:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h4:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h5:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] h6:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] li:has(+ .llm-bilingual-wrapper),
+[data-llm-state="translation"] blockquote:has(+ .llm-bilingual-wrapper) {
+  display: none !important;
+}
+
+/* =========================================================
+   3. 五大双语主题 (完全自适应原网页字体与深色/浅色背景)
+   ========================================================= */
+
+/* 主题 1: 点线虚线 (Dashed Underline) - 默认 */
+[data-llm-theme="dashed"] .llm-bilingual-inner {
+  border-bottom: 1.5px dashed rgba(99, 102, 241, 0.6);
+  padding-bottom: 1px;
+}
+
+/* 主题 2: 荧光便签高亮 (Highlight / Marker) - 自适应明暗背景 */
+[data-llm-theme="highlight"] .llm-bilingual-inner {
+  background: rgba(254, 240, 138, 0.38);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-llm-theme="highlight"] .llm-bilingual-inner {
+    background: rgba(234, 179, 8, 0.25);
+  }
+}
+
+/* 主题 3: 弱化原文 (Dim Original) */
+[data-llm-theme="dim_origin"] p:has(+ .llm-bilingual-wrapper),
+[data-llm-theme="dim_origin"] li:has(+ .llm-bilingual-wrapper),
+[data-llm-theme="dim_origin"] blockquote:has(+ .llm-bilingual-wrapper) {
+  opacity: 0.55 !important;
+  transition: opacity 0.2s ease;
+}
+
+[data-llm-theme="dim_origin"] p:has(+ .llm-bilingual-wrapper):hover,
+[data-llm-theme="dim_origin"] li:has(+ .llm-bilingual-wrapper):hover {
+  opacity: 0.9 !important;
+}
+
+/* 主题 4: 优雅引用块 (Blockquote) */
+[data-llm-theme="blockquote"] .llm-bilingual-wrapper {
+  border-left: 3px solid #6366f1 !important;
+  padding-left: 0.6em !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+
+/* 主题 5: 极简纯净 (Simple) */
+[data-llm-theme="simple"] .llm-bilingual-inner {
+  opacity: 0.88;
+}
+
+/* =========================================================
+   4. 翻译加载占位与骨架流光
+   ========================================================= */
+.llm-bilingual-loading .llm-bilingual-inner {
+  opacity: 0.6;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.15) 25%, rgba(148, 163, 184, 0.3) 50%, rgba(148, 163, 184, 0.15) 75%);
+  background-size: 200% 100%;
+  animation: llm-skeleton 1.5s infinite;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}
+
+@keyframes llm-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =========================================================
+   5. 页面右下角悬浮球 (Float Action Ball)
+   ========================================================= */
+#llm-bilingual-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2147483640;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 16px;
+  font-weight: bold;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+#llm-bilingual-fab:hover {
+  transform: scale(1.12);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.55);
+}
+
+#llm-bilingual-fab.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+}
