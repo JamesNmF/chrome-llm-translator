@@ -283,6 +283,7 @@
           <span class="llm-badge">🤖 ${PROVIDERS[currentSettings.provider]?.name || 'LLM'}</span>
         </div>
         <div class="llm-header-actions">
+          <button class="llm-icon-btn" id="llm-btn-retry" title="重新翻译">🔄</button>
           <button class="llm-icon-btn ${isPinned ? 'active' : ''}" id="llm-btn-pin" title="固定窗口">📌</button>
           <button class="llm-icon-btn" id="llm-btn-close" title="关闭">✕</button>
         </div>
@@ -324,18 +325,24 @@
 
     shadowRoot.appendChild(cardModal);
     setupCardEvents(cardModal, text);
-    executeTranslation(text, targetLang, mode);
+    executeTranslation(text, targetLang, mode, false);
   }
 
   function setupCardEvents(card, sourceText) {
     const btnClose = card.querySelector('#llm-btn-close');
     const btnPin = card.querySelector('#llm-btn-pin');
+    const btnRetry = card.querySelector('#llm-btn-retry');
     const selectMode = card.querySelector('#llm-select-mode');
     const selectLang = card.querySelector('#llm-select-lang');
     const btnCopy = card.querySelector('#llm-btn-copy');
     const btnSpeakTarget = card.querySelector('#llm-btn-speak-target');
     const btnSpeakSource = card.querySelector('#llm-btn-speak-source');
     const dragHandle = card.querySelector('#llm-drag-handle');
+
+    btnRetry.addEventListener('click', (e) => {
+      e.stopPropagation();
+      executeTranslation(sourceText, selectLang.value, selectMode.value, true);
+    });
 
     btnClose.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -351,11 +358,11 @@
     });
 
     selectMode.addEventListener('change', () => {
-      executeTranslation(sourceText, selectLang.value, selectMode.value);
+      executeTranslation(sourceText, selectLang.value, selectMode.value, false);
     });
 
     selectLang.addEventListener('change', () => {
-      executeTranslation(sourceText, selectLang.value, selectMode.value);
+      executeTranslation(sourceText, selectLang.value, selectMode.value, false);
     });
 
     btnCopy.addEventListener('click', async (e) => {
@@ -409,7 +416,7 @@
     });
   }
 
-  async function executeTranslation(text, targetLang, mode) {
+  async function executeTranslation(text, targetLang, mode, forceRefresh = false) {
     if (currentAbortController) {
       currentAbortController.abort();
     }
@@ -435,6 +442,7 @@
       targetLang,
       mode,
       settings: currentSettings,
+      forceRefresh,
       signal: currentAbortController.signal,
       onChunk: (chunk, fullText) => {
         activeTranslation = fullText;
