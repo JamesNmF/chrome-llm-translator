@@ -87,7 +87,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     targetLangSelect.appendChild(opt);
   });
 
-  // 2. ⭐️ 核心新增：在 Popup 中直接拖入 PDF 自动跳转至阅读器
+  // 2. 🌐 当前网页沉浸式翻译控制 (显示原文 / 双语对照 / 仅看译文)
+  const btnViewOrigin = document.getElementById('btn-view-origin');
+  const btnViewDual = document.getElementById('btn-view-dual');
+  const btnViewTrans = document.getElementById('btn-view-trans');
+  const webPageState = document.getElementById('web-page-state');
+
+  async function sendWebTranslationCommand(viewMode) {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) return;
+
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        type: 'SET_BILINGUAL_PAGE_VIEW',
+        view: viewMode
+      });
+
+      updateWebViewButtons(viewMode);
+      if (webPageState) {
+        webPageState.textContent = viewMode === 'origin' ? '已显示原文' : viewMode === 'dual' ? '双语对照中' : '仅显示译文';
+      }
+    } catch (e) {
+      if (webPageState) webPageState.textContent = '请在常规网页使用';
+    }
+  }
+
+  function updateWebViewButtons(activeView) {
+    [btnViewOrigin, btnViewDual, btnViewTrans].forEach(btn => {
+      if (btn) btn.classList.toggle('active', btn.dataset.view === activeView);
+    });
+  }
+
+  btnViewOrigin.addEventListener('click', () => sendWebTranslationCommand('origin'));
+  btnViewDual.addEventListener('click', () => sendWebTranslationCommand('dual'));
+  btnViewTrans.addEventListener('click', () => sendWebTranslationCommand('translation'));
+
+  // 3. ⭐️ 核心功能：在 Popup 中直接拖入 PDF 自动跳转至阅读器
   let dragCounter = 0;
 
   window.addEventListener('dragenter', (e) => {

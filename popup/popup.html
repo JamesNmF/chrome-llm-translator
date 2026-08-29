@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LLM 智能翻译</title>
+  <title>LLM 翻译官</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -22,7 +22,7 @@
       <div class="header-brand">
         <img src="../icons/icon48.png" alt="Logo" class="logo">
         <div>
-          <h1 class="title">LLM 翻译</h1>
+          <h1 class="title">LLM 翻译官</h1>
           <span class="provider-tag" id="current-model-tag">DeepSeek</span>
         </div>
       </div>
@@ -37,6 +37,25 @@
         </button>
       </div>
     </header>
+
+    <!-- 🌐 当前网页翻译控制面板 (显示原文 / 双语对照 / 仅看译文) -->
+    <div class="web-translate-panel">
+      <div class="web-translate-header">
+        <span class="web-panel-title">🌐 当前网页翻译控制</span>
+        <span class="web-state-badge" id="web-page-state">就绪 (Alt+A)</span>
+      </div>
+      <div class="web-view-buttons">
+        <button class="view-btn active" id="btn-view-origin" data-view="origin" title="恢复网页原始外文">
+          <span>📄 原文</span>
+        </button>
+        <button class="view-btn" id="btn-view-dual" data-view="dual" title="同时显示原文与中文译文">
+          <span>📑 双语对照</span>
+        </button>
+        <button class="view-btn" id="btn-view-trans" data-view="translation" title="仅显示中文译文">
+          <span>✨ 仅看译文</span>
+        </button>
+      </div>
+    </div>
 
     <!-- 模式选项卡 -->
     <div class="modes-bar" id="modes-container"></div>
@@ -98,9 +117,9 @@
     <!-- 历史记录抽屉 -->
     <div class="history-drawer" id="history-drawer">
       <div class="drawer-header">
-        <h2>历史记录</h2>
+        <h3>翻译历史</h3>
         <div class="drawer-actions">
-          <button class="tool-btn text-danger" id="btn-clear-history">清空</button>
+          <button class="tool-btn" id="btn-clear-history">清空</button>
           <button class="icon-btn" id="btn-close-history">✕</button>
         </div>
       </div>

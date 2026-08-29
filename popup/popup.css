@@ -415,3 +415,67 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
+/* 当前网页沉浸式翻译快捷控制条 */
+.web-translate-panel {
+  padding: 8px 14px;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.web-translate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.web-panel-title {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.web-state-badge {
+  font-size: 11px;
+  color: #6366f1;
+  background: #e0e7ff;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.web-view-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.view-btn {
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.view-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.view-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}

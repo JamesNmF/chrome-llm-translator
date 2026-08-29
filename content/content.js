@@ -476,10 +476,10 @@
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // 划词监听
+  // 划词监听：鼠标划词后仅显示小浮标图标，用户点击浮标才弹出翻译卡片
   document.addEventListener('mouseup', (e) => {
     if (e.composedPath().includes(hostEl)) return;
-    if (!currentSettings.enableSelection) return;
+    if (currentSettings.enableSelectionBubble === false) return;
 
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : '';
@@ -494,11 +494,8 @@
     const clientX = rect.right + window.scrollX;
     const clientY = rect.top + window.scrollY;
 
-    if (currentSettings.selectionTrigger === 'auto') {
-      openCardAndTranslate(clientX, clientY, text);
-    } else {
-      showTriggerButton(clientX, clientY, text);
-    }
+    // 默认展示优雅的翻译小浮标，用户点击后才触发翻译
+    showTriggerButton(clientX, clientY, text);
   });
 
   document.addEventListener('mousedown', (e) => {
@@ -509,7 +506,7 @@
     }
   });
 
-  // 监听 Background 指令
+  // 监听指令
   chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     if (request.type === 'TRIGGER_TRANSLATE_SELECTION' && request.text) {
       const selection = window.getSelection();
@@ -536,7 +533,13 @@
       // 快捷键 Alt+A 切换全网页双语对照
       const state = await bilingualEngine.toggleFullPage();
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      showToast(state === 'dual' ? '🌐 已开启全网页双语对照' : state === 'translation' ? '📄 已切换为仅显示译文' : '🔄 已还原网页原文');
+      showToast(state === 'dual' ? '🌐 已开启全网页双语对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      sendResponse({ state });
+    } else if (request.type === 'SET_BILINGUAL_PAGE_VIEW') {
+      // 从 Popup 菜单中直接选择：显示原文 / 双语对照 / 仅看译文
+      const state = await bilingualEngine.setViewState(request.view);
+      if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
+      showToast(state === 'dual' ? '🌐 已开启全网页双语对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     }
   });
