@@ -350,3 +350,44 @@
   80% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, -6px); }
 }
+
+/* =========================================================
+   YouTube / 视频实时双语字幕悬浮条
+   ========================================================= */
+#llm-video-subtitles-container {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483640;
+  pointer-events: none;
+  text-align: center;
+  max-width: 85%;
+  transition: all 0.15s ease;
+}
+
+.llm-video-sub-card {
+  display: inline-block;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.llm-sub-translated {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #fde047; /* 亮黄译文 */
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.llm-sub-original {
+  font-size: 12.5px;
+  color: #cbd5e1;
+  line-height: 1.3;
+}

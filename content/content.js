@@ -525,4 +525,67 @@
     }
   });
 
+  // ==========================================
+  // 6. YouTube / 网页视频实时双语字幕 (Bilingual Subtitles)
+  // ==========================================
+  function initVideoSubtitleObserver() {
+    let subContainer = null;
+    let lastCaptionText = '';
+    let subAbortCtrl = null;
+
+    function getOrCreateSubtitleContainer(videoWrapper) {
+      if (subContainer && document.body.contains(subContainer)) return subContainer;
+      subContainer = document.createElement('div');
+      subContainer.id = 'llm-video-subtitles-container';
+      videoWrapper.appendChild(subContainer);
+      return subContainer;
+    }
+
+    const captionObserver = new MutationObserver(() => {
+      if (currentSettings.enableVideoSubtitles === false) return;
+
+      const ytCaptionSegment = document.querySelector('.ytp-caption-segment');
+      const ytPlayer = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
+
+      if (ytCaptionSegment && ytPlayer) {
+        const text = ytCaptionSegment.textContent.trim();
+        if (text && text !== lastCaptionText && text.length >= 2) {
+          lastCaptionText = text;
+          const container = getOrCreateSubtitleContainer(ytPlayer);
+
+          if (subAbortCtrl) subAbortCtrl.abort();
+          subAbortCtrl = new AbortController();
+
+          LLMClient.translateStream({
+            text,
+            targetLang: currentSettings.targetLang || 'zh-CN',
+            mode: 'fluent',
+            settings: currentSettings,
+            signal: subAbortCtrl.signal,
+            onChunk: (chunk, full) => {
+              container.innerHTML = `
+                <div class="llm-video-sub-card">
+                  <div class="llm-sub-translated">${escapeHtml(full)}</div>
+                  <div class="llm-sub-original">${escapeHtml(text)}</div>
+                </div>
+              `;
+            },
+            onDone: (full) => {
+              container.innerHTML = `
+                <div class="llm-video-sub-card">
+                  <div class="llm-sub-translated">${escapeHtml(full)}</div>
+                  <div class="llm-sub-original">${escapeHtml(text)}</div>
+                </div>
+              `;
+            }
+          });
+        }
+      }
+    });
+
+    captionObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  initVideoSubtitleObserver();
+
 })();

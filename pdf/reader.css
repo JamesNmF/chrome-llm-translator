@@ -54,16 +54,16 @@ body, html {
 }
 
 .logo {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
 }
 
 .title {
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 14px;
   color: #f8fafc;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .divider {
@@ -158,8 +158,8 @@ body, html {
 }
 
 .icon-btn {
-  width: 26px;
   height: 26px;
+  padding: 0 8px;
   border-radius: 4px;
   border: 1px solid #475569;
   background: #0f172a;
@@ -174,6 +174,74 @@ body, html {
 .icon-btn:hover {
   background: #334155;
   color: #ffffff;
+}
+
+/* 主体区域 */
+.main-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 目录大纲侧边栏 */
+.outline-sidebar {
+  width: 260px;
+  background: #1e293b;
+  border-right: 1px solid var(--border);
+  display: none;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 80;
+  transition: transform 0.2s ease;
+}
+
+.outline-sidebar.open {
+  display: flex;
+}
+
+.outline-header {
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.outline-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.outline-item {
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s;
+}
+
+.outline-item:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.outline-item.depth-1 { padding-left: 18px; color: #94a3b8; }
+.outline-item.depth-2 { padding-left: 28px; color: #94a3b8; font-size: 11.5px; }
+
+.outline-empty {
+  text-align: center;
+  padding: 30px 10px;
+  color: #64748b;
+  font-size: 12px;
 }
 
 /* 主阅读视口 */
@@ -276,9 +344,7 @@ body, html {
   display: block;
 }
 
-/* =========================================================
-   右侧纸张顶层：整段完整包围盒覆盖图层 (段落级纯白擦除)
-   ========================================================= */
+/* 覆盖层 */
 .pdf-para-overlay {
   position: absolute;
   top: 0;
@@ -289,7 +355,6 @@ body, html {
   z-index: 10;
 }
 
-/* 整段包围盒：纯白背景 100% 遮盖整段英文，段内自然流动排版，字号自适应 */
 .pdf-para-box {
   position: absolute;
   pointer-events: auto;
@@ -306,7 +371,6 @@ body, html {
   overflow: hidden;
 }
 
-/* 重点引言框 (FINDING 框) */
 .pdf-para-box.finding-box {
   background: #f0fdf4 !important;
   border: 1px solid #86efac;
@@ -315,14 +379,12 @@ body, html {
   font-weight: 600;
 }
 
-/* 悬浮透视：鼠标移上去瞬间变成半透明，看清底下的英文 */
 .pdf-para-box:hover {
   opacity: 0.1 !important;
   outline: 1.5px dashed #4f46e5;
   cursor: pointer;
 }
 
-/* 加载骨架流光动画 */
 .pdf-para-loading {
   background: linear-gradient(90deg, #f8fafc 25%, #e2e8f0 50%, #f8fafc 75%) !important;
   background-size: 200% 100% !important;
@@ -333,6 +395,62 @@ body, html {
 @keyframes para-skeleton {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* 划词生词气泡 */
+.vocab-bubble {
+  position: absolute;
+  display: none;
+  background: #1e293b;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  padding: 10px 14px;
+  z-index: 1000;
+  max-width: 280px;
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.vocab-bubble.show {
+  display: block;
+}
+
+.vocab-bubble-word {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #818cf8;
+  margin-bottom: 4px;
+}
+
+.vocab-bubble-trans {
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.vocab-bubble-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tool-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #334155;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.tool-btn:hover {
+  background: #475569;
+}
+
+.tool-btn.primary {
+  background: var(--primary);
+  border-color: transparent;
 }
 
 /* 底部状态栏 */

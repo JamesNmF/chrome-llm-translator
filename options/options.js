@@ -1,12 +1,17 @@
-import { DEFAULT_SETTINGS, LANGUAGES, PROMPT_MODES, PROVIDERS, BILINGUAL_THEMES } from '../lib/constants.js';
+/**
+ * Options 脚本：配置管理、术语库 CRUD、生词本导出与连通性测试
+ */
+
+import { DEFAULT_SETTINGS, LANGUAGES, PROMPT_MODES, PROVIDERS, THEMES } from '../lib/constants.js';
 import { LLMClient } from '../lib/llm-client.js';
+import { dbInstance } from '../lib/cache-db.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // DOM 元素引用
   const navItems = document.querySelectorAll('.nav-item');
   const tabPanels = document.querySelectorAll('.tab-panel');
   const toastBanner = document.getElementById('toast-banner');
 
-  // API
   const providerSelect = document.getElementById('provider-select');
   const providerTip = document.getElementById('provider-tip');
   const apiKeyInput = document.getElementById('api-key-input');
@@ -20,140 +25,143 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnTestApi = document.getElementById('btn-test-api');
   const testResultTag = document.getElementById('test-result-tag');
 
-  // 双语
-  const prefBilingualTheme = document.getElementById('pref-bilingual-theme');
-  const prefShowFloatBall = document.getElementById('pref-show-float-ball');
-  const prefEnableInputEnhance = document.getElementById('pref-enable-input-enhance');
-  const prefInputTargetLang = document.getElementById('pref-input-target-lang');
+  const targetLangSelect = document.getElementById('target-lang-select');
+  const themeGrid = document.getElementById('theme-grid');
+  const enableVideoSubtitles = document.getElementById('enable-video-subtitles');
+  const enableCache = document.getElementById('enable-cache');
 
-  // 划词与偏好
-  const prefEnableSelection = document.getElementById('pref-enable-selection');
-  const prefSelectionTrigger = document.getElementById('pref-selection-trigger');
-  const prefTargetLang = document.getElementById('pref-target-lang');
-  const prefDefaultMode = document.getElementById('pref-default-mode');
-  const prefAutoPronounce = document.getElementById('pref-auto-pronounce');
+  // 术语库与生词本
+  const enableGlossary = document.getElementById('enable-glossary');
+  const glossaryTermInput = document.getElementById('glossary-term-input');
+  const glossaryTransInput = document.getElementById('glossary-trans-input');
+  const glossaryNoteInput = document.getElementById('glossary-note-input');
+  const btnAddGlossary = document.getElementById('btn-add-glossary');
+  const glossaryTbody = document.getElementById('glossary-tbody');
+  const vocabCount = document.getElementById('vocab-count');
+  const vocabTbody = document.getElementById('vocab-tbody');
+  const btnExportVocabCsv = document.getElementById('btn-export-vocab-csv');
+  const btnExportVocabJson = document.getElementById('btn-export-vocab-json');
 
-  // Prompt
+  const enableSelectionBubble = document.getElementById('enable-selection-bubble');
+  const enableSpaceTranslate = document.getElementById('enable-space-translate');
+  const hotkeyBilingual = document.getElementById('hotkey-bilingual');
+
   const promptModeSelect = document.getElementById('prompt-mode-select');
-  const promptContentTextarea = document.getElementById('prompt-content-textarea');
+  const systemPromptTextarea = document.getElementById('system-prompt-textarea');
   const btnResetPrompt = document.getElementById('btn-reset-prompt');
 
-  // 数据
-  const btnExportConfig = document.getElementById('btn-export-config');
-  const btnImportConfig = document.getElementById('btn-import-config');
-  const fileImportInput = document.getElementById('file-import-input');
-  const btnClearAllHistory = document.getElementById('btn-clear-all-history');
-  const btnResetAll = document.getElementById('btn-reset-all');
+  const btnExportSettings = document.getElementById('btn-export-settings');
+  const btnImportSettings = document.getElementById('btn-import-settings');
+  const importFileInput = document.getElementById('import-file-input');
 
-  const btnSaveAll = document.getElementById('btn-save-all');
-  const saveStatusText = document.getElementById('save-status-text');
+  const btnSaveSettings = document.getElementById('btn-save-settings');
+  const saveStatus = document.getElementById('save-status');
 
-  let settings = { ...DEFAULT_SETTINGS };
-  let currentProvider = 'deepseek';
+  let currentSettings = { ...DEFAULT_SETTINGS };
 
-  // 读取配置
+  // 1. Tab 切换
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      navItems.forEach(i => i.classList.remove('active'));
+      tabPanels.forEach(p => p.classList.remove('active'));
+
+      item.classList.add('active');
+      const targetPanel = document.getElementById(item.dataset.tab);
+      if (targetPanel) targetPanel.classList.add('active');
+
+      if (item.dataset.tab === 'glossary-tab') {
+        loadGlossaryTable();
+        loadVocabTable();
+      }
+    });
+  });
+
+  // 2. 初始化提供商下拉框
+  providerSelect.innerHTML = '';
+  Object.values(PROVIDERS).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    providerSelect.appendChild(opt);
+  });
+
+  // 初始化目标语言
+  targetLangSelect.innerHTML = '';
+  LANGUAGES.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l.code;
+    opt.textContent = `${l.name} (${l.code})`;
+    targetLangSelect.appendChild(opt);
+  });
+
+  // 初始化主题选择
+  themeGrid.innerHTML = '';
+  THEMES.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'theme-item';
+    item.dataset.theme = t.id;
+    item.innerHTML = `
+      <div class="theme-name">${t.name}</div>
+      <div class="theme-desc">${t.desc}</div>
+    `;
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.theme-item').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+      currentSettings.theme = t.id;
+    });
+    themeGrid.appendChild(item);
+  });
+
+  // 初始化 Prompt 模式下拉
+  promptModeSelect.innerHTML = '';
+  Object.values(PROMPT_MODES).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.name} (${m.desc})`;
+    promptModeSelect.appendChild(opt);
+  });
+
+  // 3. 读取已保存设置
   const stored = await chrome.storage.sync.get('settings');
   if (stored.settings) {
-    settings = {
-      ...DEFAULT_SETTINGS,
-      ...stored.settings,
-      providersConfig: {
-        ...DEFAULT_SETTINGS.providersConfig,
-        ...(stored.settings.providersConfig || {})
-      },
-      customPrompts: {
-        ...(stored.settings.customPrompts || {})
-      }
-    };
+    currentSettings = { ...DEFAULT_SETTINGS, ...stored.settings };
   }
-  currentProvider = settings.provider || 'deepseek';
+  applySettingsToUI(currentSettings);
 
-  function initOptions() {
-    // 渲染 Provider
-    providerSelect.innerHTML = '';
-    Object.values(PROVIDERS).forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      if (p.id === currentProvider) opt.selected = true;
-      providerSelect.appendChild(opt);
-    });
+  function applySettingsToUI(s) {
+    providerSelect.value = s.provider || 'deepseek';
+    updateProviderMeta(s.provider || 'deepseek');
 
-    // 渲染双语主题
-    prefBilingualTheme.innerHTML = '';
-    BILINGUAL_THEMES.forEach(th => {
-      const opt = document.createElement('option');
-      opt.value = th.id;
-      opt.textContent = `${th.name} - ${th.desc}`;
-      if (th.id === (settings.bilingualTheme || 'dashed')) opt.selected = true;
-      prefBilingualTheme.appendChild(opt);
-    });
+    apiKeyInput.value = s.apiKey || '';
+    baseUrlInput.value = s.baseUrl || '';
+    modelInput.value = s.model || '';
+    temperatureRange.value = s.temperature ?? 0.3;
+    tempVal.textContent = s.temperature ?? 0.3;
 
-    // 渲染语言
-    prefTargetLang.innerHTML = '';
-    prefInputTargetLang.innerHTML = '';
-    LANGUAGES.forEach(l => {
-      const opt1 = document.createElement('option');
-      opt1.value = l.code;
-      opt1.textContent = l.name;
-      if (l.code === settings.targetLang) opt1.selected = true;
-      prefTargetLang.appendChild(opt1);
+    targetLangSelect.value = s.targetLang || 'zh-CN';
+    enableVideoSubtitles.checked = s.enableVideoSubtitles !== false;
+    enableCache.checked = s.enableBilingualCache !== false;
+    enableGlossary.checked = s.enableGlossary !== false;
 
-      const opt2 = document.createElement('option');
-      opt2.value = l.code;
-      opt2.textContent = l.name;
-      if (l.code === (settings.inputTargetLang || 'en')) opt2.selected = true;
-      prefInputTargetLang.appendChild(opt2);
-    });
+    enableSelectionBubble.checked = s.enableSelectionBubble !== false;
+    enableSpaceTranslate.checked = s.enableSpaceTranslate !== false;
+    hotkeyBilingual.value = s.hotkeyBilingual || 'Alt+A';
 
-    // 渲染模式
-    prefDefaultMode.innerHTML = '';
-    promptModeSelect.innerHTML = '';
-    Object.values(PROMPT_MODES).forEach(m => {
-      const opt1 = document.createElement('option');
-      opt1.value = m.id;
-      opt1.textContent = `${m.icon} ${m.name} (${m.desc})`;
-      if (m.id === settings.defaultMode) opt1.selected = true;
-      prefDefaultMode.appendChild(opt1);
+    // 主题高亮
+    const activeThemeEl = document.querySelector(`.theme-item[data-theme="${s.theme || 'dashed'}"]`);
+    if (activeThemeEl) activeThemeEl.classList.add('active');
 
-      const opt2 = document.createElement('option');
-      opt2.value = m.id;
-      opt2.textContent = `${m.icon} ${m.name}`;
-      promptModeSelect.appendChild(opt2);
-    });
-
-    prefShowFloatBall.checked = settings.showFloatBall !== false;
-    prefEnableInputEnhance.checked = settings.enableInputEnhance !== false;
-    prefEnableSelection.checked = settings.enableSelection !== false;
-    prefSelectionTrigger.value = settings.selectionTrigger || 'icon';
-    prefAutoPronounce.checked = !!settings.autoPronounce;
-
-    loadProviderFields(currentProvider);
-    loadPromptField(promptModeSelect.value);
+    // Prompt 回显
+    updatePromptTextarea(promptModeSelect.value);
   }
 
-  function loadProviderFields(providerId) {
-    const meta = PROVIDERS[providerId] || PROVIDERS.custom;
-    const provConfig = settings.providersConfig[providerId] || {
-      apiKey: '',
-      baseUrl: meta.baseUrl || '',
-      model: meta.defaultModel || ''
-    };
-
+  function updateProviderMeta(pId) {
+    const meta = PROVIDERS[pId] || PROVIDERS.custom;
     providerTip.textContent = meta.tip || '';
-    apiKeyInput.value = provConfig.apiKey || (providerId === settings.provider ? settings.apiKey : '');
-    baseUrlInput.value = provConfig.baseUrl || meta.baseUrl || '';
-    modelInput.value = provConfig.model || meta.defaultModel || '';
-    temperatureRange.value = settings.temperature ?? 0.3;
-    tempVal.textContent = temperatureRange.value;
+    apiKeyLink.href = meta.docsUrl || '#';
+    apiKeyLink.style.display = meta.docsUrl ? 'inline' : 'none';
 
-    if (meta.docsUrl) {
-      apiKeyLink.href = meta.docsUrl;
-      apiKeyLink.style.display = 'inline';
-    } else {
-      apiKeyLink.style.display = 'none';
-    }
-
+    // 更新 Datalist 模型备选
     modelOptions.innerHTML = '';
     (meta.models || []).forEach(m => {
       const opt = document.createElement('option');
@@ -161,190 +169,225 @@ document.addEventListener('DOMContentLoaded', async () => {
       modelOptions.appendChild(opt);
     });
 
-    testResultTag.textContent = '';
+    if (!baseUrlInput.value || Object.values(PROVIDERS).some(p => p.baseUrl === baseUrlInput.value)) {
+      baseUrlInput.value = meta.baseUrl || '';
+    }
+    if (!modelInput.value || Object.values(PROVIDERS).some(p => p.models?.includes(modelInput.value))) {
+      modelInput.value = meta.defaultModel || '';
+    }
   }
-
-  function saveCurrentProviderFields() {
-    if (!settings.providersConfig) settings.providersConfig = {};
-    settings.providersConfig[currentProvider] = {
-      apiKey: apiKeyInput.value.trim(),
-      baseUrl: baseUrlInput.value.trim(),
-      model: modelInput.value.trim()
-    };
-  }
-
-  function loadPromptField(modeId) {
-    const custom = settings.customPrompts?.[modeId];
-    promptContentTextarea.value = custom || PROMPT_MODES[modeId]?.systemPrompt || '';
-  }
-
-  initOptions();
-
-  // Tab 切换
-  navItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const tabId = item.dataset.tab;
-      navItems.forEach(n => n.classList.remove('active'));
-      tabPanels.forEach(p => p.classList.remove('active'));
-      item.classList.add('active');
-      document.getElementById(tabId).classList.add('active');
-    });
-  });
 
   providerSelect.addEventListener('change', () => {
-    saveCurrentProviderFields();
-    currentProvider = providerSelect.value;
-    loadProviderFields(currentProvider);
-  });
-
-  btnToggleKey.addEventListener('click', () => {
-    if (apiKeyInput.type === 'password') {
-      apiKeyInput.type = 'text';
-      btnToggleKey.textContent = '🔒';
-    } else {
-      apiKeyInput.type = 'password';
-      btnToggleKey.textContent = '👁️';
-    }
+    updateProviderMeta(providerSelect.value);
   });
 
   temperatureRange.addEventListener('input', () => {
     tempVal.textContent = temperatureRange.value;
   });
 
-  promptModeSelect.addEventListener('change', () => {
-    loadPromptField(promptModeSelect.value);
+  btnToggleKey.addEventListener('click', () => {
+    apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
   });
+
+  promptModeSelect.addEventListener('change', () => {
+    updatePromptTextarea(promptModeSelect.value);
+  });
+
+  function updatePromptTextarea(modeId) {
+    const custom = currentSettings.customPrompts?.[modeId];
+    systemPromptTextarea.value = custom || PROMPT_MODES[modeId]?.systemPrompt || '';
+  }
 
   btnResetPrompt.addEventListener('click', () => {
     const modeId = promptModeSelect.value;
-    if (settings.customPrompts) {
-      delete settings.customPrompts[modeId];
+    systemPromptTextarea.value = PROMPT_MODES[modeId]?.systemPrompt || '';
+    if (currentSettings.customPrompts) {
+      delete currentSettings.customPrompts[modeId];
     }
-    loadPromptField(modeId);
-    showToast('已重置该场景为官方默认 Prompt', 'success');
+    showToast('已恢复为默认 Prompt');
   });
 
-  // 测试连接
+  // 4. API 连通性测试
   btnTestApi.addEventListener('click', async () => {
-    testResultTag.textContent = '⏳ 正在发起测试请求...';
+    testResultTag.textContent = '正在测试连接...';
     testResultTag.className = 'test-tag';
-    btnTestApi.disabled = true;
 
-    saveCurrentProviderFields();
-
-    const tempSettings = {
-      ...settings,
-      provider: currentProvider,
+    const testSettings = {
+      provider: providerSelect.value,
       apiKey: apiKeyInput.value.trim(),
       baseUrl: baseUrlInput.value.trim(),
       model: modelInput.value.trim(),
       temperature: Number(temperatureRange.value)
     };
 
-    const res = await LLMClient.testConnection(tempSettings);
-    btnTestApi.disabled = false;
-
+    const res = await LLMClient.testConnection(testSettings);
     if (res.success) {
-      testResultTag.textContent = `✅ ${res.message} (译文: "${res.text.slice(0, 20)}")`;
-      testResultTag.className = 'test-tag success';
+      testResultTag.textContent = `✓ 连通成功 (${res.duration}ms)`;
+      testResultTag.classList.add('success');
     } else {
-      testResultTag.textContent = `❌ ${res.message}`;
-      testResultTag.className = 'test-tag error';
+      testResultTag.textContent = `✕ ${res.message}`;
+      testResultTag.classList.add('error');
     }
   });
 
-  // 保存所有设置
-  btnSaveAll.addEventListener('click', async () => {
-    saveCurrentProviderFields();
+  // 5. 术语库管理
+  async function loadGlossaryTable() {
+    const list = await dbInstance.getGlossaryList();
+    glossaryTbody.innerHTML = '';
+    if (list.length === 0) {
+      glossaryTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">暂无术语对照</td></tr>';
+      return;
+    }
+    list.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(item.term)}</strong></td>
+        <td>${escapeHtml(item.translation)}</td>
+        <td style="color:#64748b;">${escapeHtml(item.note || '-')}</td>
+        <td><button class="btn-del-item" data-id="${item.id}">删除</button></td>
+      `;
+      tr.querySelector('.btn-del-item').addEventListener('click', async () => {
+        await dbInstance.deleteGlossaryTerm(item.id);
+        loadGlossaryTable();
+      });
+      glossaryTbody.appendChild(tr);
+    });
+  }
 
-    const currentModeId = promptModeSelect.value;
-    const currentPromptVal = promptContentTextarea.value.trim();
-    if (!settings.customPrompts) settings.customPrompts = {};
-    if (currentPromptVal && currentPromptVal !== PROMPT_MODES[currentModeId]?.systemPrompt) {
-      settings.customPrompts[currentModeId] = currentPromptVal;
-    } else {
-      delete settings.customPrompts[currentModeId];
+  btnAddGlossary.addEventListener('click', async () => {
+    const term = glossaryTermInput.value.trim();
+    const trans = glossaryTransInput.value.trim();
+    const note = glossaryNoteInput.value.trim();
+    if (!term || !trans) {
+      alert('请填写原文术语与指定译文');
+      return;
+    }
+    await dbInstance.addGlossaryTerm(term, trans, note);
+    glossaryTermInput.value = '';
+    glossaryTransInput.value = '';
+    glossaryNoteInput.value = '';
+    loadGlossaryTable();
+  });
+
+  // 6. 生词本管理与导出
+  async function loadVocabTable() {
+    const list = await dbInstance.getVocabularyList();
+    vocabCount.textContent = list.length;
+    vocabTbody.innerHTML = '';
+    if (list.length === 0) {
+      vocabTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">暂无收藏生词</td></tr>';
+      return;
+    }
+    list.forEach(item => {
+      const tr = document.createElement('tr');
+      const timeStr = new Date(item.timestamp).toLocaleDateString();
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(item.word)}</strong></td>
+        <td>${escapeHtml(item.translation || '-')}</td>
+        <td style="color:#64748b;">${timeStr}</td>
+        <td><button class="btn-del-item" data-id="${item.id}">删除</button></td>
+      `;
+      tr.querySelector('.btn-del-item').addEventListener('click', async () => {
+        await dbInstance.deleteVocabulary(item.id);
+        loadVocabTable();
+      });
+      vocabTbody.appendChild(tr);
+    });
+  }
+
+  btnExportVocabCsv.addEventListener('click', async () => {
+    const list = await dbInstance.getVocabularyList();
+    if (list.length === 0) {
+      alert('生词本为空，暂无可导出内容');
+      return;
+    }
+    let csv = 'Word,Translation,Context,Date\n';
+    list.forEach(item => {
+      csv += `"${item.word}","${item.translation}","${item.context}","${new Date(item.timestamp).toLocaleDateString()}"\n`;
+    });
+    downloadFile(csv, `Vocabulary-${Date.now()}.csv`, 'text/csv;charset=utf-8');
+  });
+
+  btnExportVocabJson.addEventListener('click', async () => {
+    const list = await dbInstance.getVocabularyList();
+    if (list.length === 0) {
+      alert('生词本为空，暂无可导出内容');
+      return;
+    }
+    downloadFile(JSON.stringify(list, null, 2), `Vocabulary-${Date.now()}.json`, 'application/json');
+  });
+
+  // 7. 保存全部设置
+  btnSaveSettings.addEventListener('click', async () => {
+    const curModeId = promptModeSelect.value;
+    const customPrompts = currentSettings.customPrompts || {};
+    if (systemPromptTextarea.value.trim()) {
+      customPrompts[curModeId] = systemPromptTextarea.value.trim();
     }
 
-    settings.provider = currentProvider;
-    settings.apiKey = apiKeyInput.value.trim();
-    settings.baseUrl = baseUrlInput.value.trim();
-    settings.model = modelInput.value.trim();
-    settings.temperature = Number(temperatureRange.value);
+    const newSettings = {
+      ...currentSettings,
+      provider: providerSelect.value,
+      apiKey: apiKeyInput.value.trim(),
+      baseUrl: baseUrlInput.value.trim(),
+      model: modelInput.value.trim(),
+      temperature: Number(temperatureRange.value),
+      targetLang: targetLangSelect.value,
+      enableVideoSubtitles: enableVideoSubtitles.checked,
+      enableBilingualCache: enableCache.checked,
+      enableGlossary: enableGlossary.checked,
+      enableSelectionBubble: enableSelectionBubble.checked,
+      enableSpaceTranslate: enableSpaceTranslate.checked,
+      customPrompts
+    };
 
-    // 双语与输入框
-    settings.bilingualTheme = prefBilingualTheme.value;
-    settings.showFloatBall = prefShowFloatBall.checked;
-    settings.enableInputEnhance = prefEnableInputEnhance.checked;
-    settings.inputTargetLang = prefInputTargetLang.value;
+    await chrome.storage.sync.set({ settings: newSettings });
+    currentSettings = newSettings;
 
-    settings.enableSelection = prefEnableSelection.checked;
-    settings.selectionTrigger = prefSelectionTrigger.value;
-    settings.targetLang = prefTargetLang.value;
-    settings.defaultMode = prefDefaultMode.value;
-    settings.autoPronounce = prefAutoPronounce.checked;
-
-    await chrome.storage.sync.set({ settings });
-
-    showToast('🎉 设置已成功保存并实时生效！', 'success');
-    saveStatusText.textContent = `上次保存时间: ${new Date().toLocaleTimeString()}`;
+    saveStatus.textContent = '✓ 设置已于 ' + new Date().toLocaleTimeString() + ' 成功保存';
+    showToast('🎉 设置已成功保存并全局生效！');
   });
 
-  btnExportConfig.addEventListener('click', () => {
-    saveCurrentProviderFields();
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(settings, null, 2));
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', `llm-translator-config-${new Date().toISOString().slice(0, 10)}.json`);
-    dlAnchor.click();
-    dlAnchor.remove();
+  // 8. 导入与导出设置
+  btnExportSettings.addEventListener('click', () => {
+    const jsonStr = JSON.stringify(currentSettings, null, 2);
+    downloadFile(jsonStr, `LLM-Translator-Settings-${Date.now()}.json`, 'application/json');
   });
 
-  btnImportConfig.addEventListener('click', () => {
-    fileImportInput.click();
-  });
-
-  fileImportInput.addEventListener('change', (e) => {
+  btnImportSettings.addEventListener('click', () => importFileInput.click());
+  importFileInput.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const imported = JSON.parse(event.target.result);
-        settings = { ...DEFAULT_SETTINGS, ...imported };
-        await chrome.storage.sync.set({ settings });
-        currentProvider = settings.provider || 'deepseek';
-        initOptions();
-        showToast('✅ 配置文件导入成功！', 'success');
-      } catch (err) {
-        showToast('导入失败：无效的 JSON 配置文件', 'error');
-      }
-    };
-    reader.readAsText(file);
-  });
-
-  btnClearAllHistory.addEventListener('click', async () => {
-    if (confirm('确定要清空全部翻译历史记录吗？此操作不可逆。')) {
-      await chrome.storage.local.set({ translation_history: [] });
-      showToast('已清空全部翻译历史记录', 'success');
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      currentSettings = { ...DEFAULT_SETTINGS, ...imported };
+      await chrome.storage.sync.set({ settings: currentSettings });
+      applySettingsToUI(currentSettings);
+      showToast('配置导入成功！');
+    } catch (err) {
+      alert(`导入失败: ${err.message}`);
     }
   });
 
-  btnResetAll.addEventListener('click', async () => {
-    if (confirm('确定要恢复出厂设置吗？所有配置与自定义 API 将被重置。')) {
-      settings = { ...DEFAULT_SETTINGS };
-      await chrome.storage.sync.set({ settings });
-      currentProvider = 'deepseek';
-      initOptions();
-      showToast('已恢复为初始默认出厂设置', 'success');
-    }
-  });
+  function downloadFile(content, fileName, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-  function showToast(msg, type = 'success') {
+  function showToast(msg) {
     toastBanner.textContent = msg;
-    toastBanner.className = `toast-banner ${type}`;
-    setTimeout(() => {
-      toastBanner.className = 'toast-banner hidden';
-    }, 3000);
+    toastBanner.classList.remove('hidden');
+    setTimeout(() => toastBanner.classList.add('hidden'), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 });

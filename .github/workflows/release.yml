@@ -1,0 +1,60 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax & Lint Check
+        run: |
+          node --check background/background.js
+          node --check content/content.js
+          node --check lib/llm-client.js
+          node --check lib/cache-db.js
+          node --check lib/bilingual-engine.js
+          node --check lib/constants.js
+          node --check popup/popup.js
+          node --check options/options.js
+          node --check pdf/reader.js
+          node --check epub/builder.js
+
+      - name: Package Extension ZIP
+        run: |
+          zip -r chrome-llm-translator-release.zip \
+            manifest.json \
+            README.md \
+            LICENSE \
+            background \
+            content \
+            icons \
+            lib \
+            options \
+            popup \
+            pdf \
+            epub \
+            -x "*.DS_Store" "*.git*"
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: chrome-llm-translator-release.zip
+          generate_release_notes: true

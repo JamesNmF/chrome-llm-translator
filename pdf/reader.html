@@ -12,6 +12,7 @@
     <!-- 顶部常驻工具栏 -->
     <header class="topbar">
       <div class="topbar-left">
+        <button class="icon-btn" id="btn-toggle-outline" title="展开/收起目录大纲">📑 大纲</button>
         <img src="../icons/icon48.png" alt="Logo" class="logo">
         <span class="title">PDF 双语阅读</span>
         <button class="btn btn-secondary" id="btn-upload">
@@ -51,38 +52,62 @@
       </div>
     </header>
 
-    <!-- 主阅读视口 -->
-    <main class="viewport" id="viewport">
-      <!-- 拖拽上传提示 -->
-      <div class="drop-overlay" id="drop-overlay">
-        <div class="drop-card">
-          <div class="drop-icon">📄</div>
-          <h2>选择或拖入 PDF 文件</h2>
-          <p>支持多栏排版与段落对照翻译</p>
-          <button class="btn btn-primary btn-large" id="btn-open-dialog">选择本地 PDF 文件</button>
+    <!-- 主体区域：左侧目录大纲 + 主阅读视口 -->
+    <div class="main-body">
+      <!-- 可折叠大纲侧栏 -->
+      <aside class="outline-sidebar" id="outline-sidebar">
+        <div class="outline-header">
+          <span>📑 文档大纲目录</span>
+          <button class="icon-btn" id="btn-close-outline">✕</button>
         </div>
-      </div>
+        <div class="outline-tree" id="outline-tree">
+          <div class="outline-empty">暂无目录书签</div>
+        </div>
+      </aside>
 
-      <!-- 双页并排容器 -->
-      <div class="dual-pages-stage" id="dual-pages-stage">
-        <!-- 左侧纸张：原版英文 -->
-        <div class="pdf-page-wrapper">
-          <div class="page-label">📄 原文 (第 <span id="left-page-label">1</span> 页)</div>
-          <div class="pdf-paper left-paper" id="left-paper">
-            <canvas id="pdf-canvas-left"></canvas>
+      <!-- 主阅读视口 -->
+      <main class="viewport" id="viewport">
+        <!-- 拖拽上传提示 -->
+        <div class="drop-overlay" id="drop-overlay">
+          <div class="drop-card">
+            <div class="drop-icon">📄</div>
+            <h2>选择或拖入 PDF 文件</h2>
+            <p>支持多栏排版、目录导航、扫描件 Vision 识别与生词收藏</p>
+            <button class="btn btn-primary btn-large" id="btn-open-dialog">选择本地 PDF 文件</button>
           </div>
         </div>
 
-        <!-- 右侧纸张：中文译文 -->
-        <div class="pdf-page-wrapper">
-          <div class="page-label right-label">📑 译文 (第 <span id="right-page-label">1</span> 页)</div>
-          <div class="pdf-paper right-paper" id="right-paper">
-            <canvas id="pdf-canvas-right-bg"></canvas>
-            <div class="pdf-para-overlay" id="para-overlay"></div>
+        <!-- 双页并排容器 -->
+        <div class="dual-pages-stage" id="dual-pages-stage">
+          <!-- 左侧纸张：原版英文 -->
+          <div class="pdf-page-wrapper">
+            <div class="page-label">📄 原文 (第 <span id="left-page-label">1</span> 页)</div>
+            <div class="pdf-paper left-paper" id="left-paper">
+              <canvas id="pdf-canvas-left"></canvas>
+            </div>
+          </div>
+
+          <!-- 右侧纸张：中文译文 -->
+          <div class="pdf-page-wrapper">
+            <div class="page-label right-label">📑 译文 (第 <span id="right-page-label">1</span> 页)</div>
+            <div class="pdf-paper right-paper" id="right-paper">
+              <canvas id="pdf-canvas-right-bg"></canvas>
+              <div class="pdf-para-overlay" id="para-overlay"></div>
+            </div>
           </div>
         </div>
+      </main>
+    </div>
+
+    <!-- 划词生词悬浮气泡 -->
+    <div class="vocab-bubble" id="vocab-bubble">
+      <div class="vocab-bubble-word" id="vocab-word-text"></div>
+      <div class="vocab-bubble-trans" id="vocab-trans-text">正在查询...</div>
+      <div class="vocab-bubble-actions">
+        <button class="tool-btn primary" id="btn-save-vocab">⭐ 收藏到生词本</button>
+        <button class="tool-btn" id="btn-copy-vocab">📋 复制</button>
       </div>
-    </main>
+    </div>
 
     <!-- 底部状态栏 -->
     <footer class="bottom-bar">
@@ -91,7 +116,7 @@
         <span id="status-text">就绪</span>
       </div>
       <div class="status-right">
-        <span>💡 鼠标悬浮在右侧译文上可查看原文</span>
+        <span>💡 划选文字可快速收藏生词 · 扫描件自动启用 Vision 视觉翻译</span>
       </div>
     </footer>
   </div>

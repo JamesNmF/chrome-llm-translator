@@ -1,9 +1,10 @@
 /**
- * PDF 页面排版与自适应字号双语阅读引擎 (增强 Canvas 渲染取消保护与 IndexedDB 自动加载)
+ * PDF 双语阅读引擎 (集成目录大纲、Vision 多模态扫描件翻译与划词生词本)
  */
 
 import { DEFAULT_SETTINGS, PROVIDERS } from '../lib/constants.js';
 import { LLMClient } from '../lib/llm-client.js';
+import { dbInstance } from '../lib/cache-db.js';
 
 if (window.pdfjsLib) {
   try {
@@ -31,6 +32,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnZoomOut = document.getElementById('btn-zoom-out');
   const zoomText = document.getElementById('zoom-text');
 
+  const btnToggleOutline = document.getElementById('btn-toggle-outline');
+  const btnCloseOutline = document.getElementById('btn-close-outline');
+  const outlineSidebar = document.getElementById('outline-sidebar');
+  const outlineTree = document.getElementById('outline-tree');
+
   const btnTranslatePage = document.getElementById('btn-translate-page');
   const btnTranslateAll = document.getElementById('btn-translate-all');
   const btnPrintPdf = document.getElementById('btn-print-pdf');
@@ -43,6 +49,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const leftPaper = document.getElementById('left-paper');
   const rightPaper = document.getElementById('right-paper');
   const paraOverlay = document.getElementById('para-overlay');
+
+  const vocabBubble = document.getElementById('vocab-bubble');
+  const vocabWordText = document.getElementById('vocab-word-text');
+  const vocabTransText = document.getElementById('vocab-trans-text');
+  const btnSaveVocab = document.getElementById('btn-save-vocab');
+  const btnCopyVocab = document.getElementById('btn-copy-vocab');
 
   const statusText = document.getElementById('status-text');
   const currentModelTag = document.getElementById('current-model-tag');
@@ -57,6 +69,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeAbortController = null;
   let renderTaskLeft = null;
   let renderTaskRight = null;
+  let currentSelectedWord = '';
+  let currentSelectedTrans = '';
 
   // 读取配置
   const stored = await chrome.storage.sync.get('settings');
@@ -65,6 +79,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const providerMeta = PROVIDERS[currentSettings.provider] || PROVIDERS.custom;
   currentModelTag.textContent = `${providerMeta.name.split(' ')[0]}: ${currentSettings.model || providerMeta.defaultModel}`;
+
+  // 打开/收起大纲侧栏
+  btnToggleOutline.addEventListener('click', () => {
+    outlineSidebar.classList.toggle('open');
+  });
+  btnCloseOutline.addEventListener('click', () => {
+    outlineSidebar.classList.remove('open');
+  });
 
   // 打开与上传 PDF
   btnUpload.addEventListener('click', () => fileInput.click());
@@ -102,6 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageNum = 1;
       dropOverlay.classList.add('hidden');
       await renderPage(pageNum);
+      await loadPdfOutline();
       statusText.textContent = `已打开: ${fileName} (共 ${pdfDoc.numPages} 页)`;
     } catch (err) {
       alert(`无法打开该 PDF: ${err.message}`);
@@ -118,7 +141,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 检查 URL 中是否带 auto_load=1，自动从 IndexedDB 取出
+  // 加载大纲目录树
+  async function loadPdfOutline() {
+    try {
+      const outline = await pdfDoc.getOutline();
+      outlineTree.innerHTML = '';
+      if (!outline || outline.length === 0) {
+        outlineTree.innerHTML = '<div class="outline-empty">此 PDF 无内置目录大纲</div>';
+        return;
+      }
+
+      function renderItems(items, depth = 0) {
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = `outline-item depth-${Math.min(2, depth)}`;
+          div.textContent = item.title;
+          div.title = item.title;
+
+          div.addEventListener('click', async () => {
+            if (item.dest) {
+              let pageIndex = 0;
+              if (typeof item.dest === 'string') {
+                const destArray = await pdfDoc.getDestination(item.dest);
+                if (destArray) {
+                  const ref = destArray[0];
+                  pageIndex = await pdfDoc.getPageIndex(ref);
+                }
+              } else if (Array.isArray(item.dest)) {
+                const ref = item.dest[0];
+                pageIndex = await pdfDoc.getPageIndex(ref);
+              }
+              if (pageIndex >= 0 && pageIndex < pdfDoc.numPages) {
+                pageNum = pageIndex + 1;
+                await renderPage(pageNum);
+              }
+            }
+          });
+
+          outlineTree.appendChild(div);
+          if (item.items && item.items.length > 0) {
+            renderItems(item.items, depth + 1);
+          }
+        });
+      }
+
+      renderItems(outline);
+    } catch (e) {
+      console.warn('[PDF-Reader] 获取大纲异常:', e);
+      outlineTree.innerHTML = '<div class="outline-empty">无法解析目录</div>';
+    }
+  }
+
+  // 检查 URL 中是否带 auto_load=1
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('auto_load') === '1') {
     try {
@@ -141,14 +215,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 双页同步渲染 (带取消冲突保护)
+  // 双页同步渲染
   async function renderPage(num) {
     pageNumInput.value = num;
     leftPageLabel.textContent = num;
     rightPageLabel.textContent = num;
     paraOverlay.innerHTML = '';
+    hideVocabBubble();
 
-    // 取消尚未结束的前序渲染任务
     if (renderTaskLeft) {
       try { renderTaskLeft.cancel(); } catch (e) {}
       renderTaskLeft = null;
@@ -162,31 +236,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       const page = await pdfDoc.getPage(num);
       const viewport = page.getViewport({ scale });
 
-      // 设置左侧 Canvas
       canvasLeft.height = viewport.height;
       canvasLeft.width = viewport.width;
       leftPaper.style.width = `${viewport.width}px`;
       leftPaper.style.height = `${viewport.height}px`;
 
-      // 设置右侧 Canvas
       canvasRightBg.height = viewport.height;
       canvasRightBg.width = viewport.width;
       rightPaper.style.width = `${viewport.width}px`;
       rightPaper.style.height = `${viewport.height}px`;
 
-      // 渲染左侧原始英文 Canvas
-      renderTaskLeft = page.render({
-        canvasContext: ctxLeft,
-        viewport: viewport
-      });
+      renderTaskLeft = page.render({ canvasContext: ctxLeft, viewport });
       await renderTaskLeft.promise;
       renderTaskLeft = null;
 
-      // 渲染右侧背景 Canvas
-      renderTaskRight = page.render({
-        canvasContext: ctxRightBg,
-        viewport: viewport
-      });
+      renderTaskRight = page.render({ canvasContext: ctxRightBg, viewport });
       await renderTaskRight.promise;
       renderTaskRight = null;
 
@@ -194,15 +258,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderParaOverlay(pageParaMap.get(num));
       }
     } catch (err) {
-      if (err?.name === 'RenderingCancelledException') {
-        // 快速翻页导致的正常取消，忽略
-        return;
-      }
+      if (err?.name === 'RenderingCancelledException') return;
       console.error('[PDF-Reader] 渲染页面异常:', err);
     }
   }
 
-  // 翻页
+  // 翻页与缩放
   btnPrevPage.addEventListener('click', async () => {
     if (pageNum <= 1) return;
     pageNum--;
@@ -223,7 +284,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 缩放
   btnZoomIn.addEventListener('click', async () => {
     scale += 0.15;
     zoomText.textContent = `${Math.round(scale * 100)}%`;
@@ -338,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (startsNewParagraph) {
         if (curParagraph) {
-          finalizeParagraphBox(curParagraph, paragraphBoxes, viewport.width);
+          finalizeParagraphBox(curParagraph, paragraphBoxes);
         }
         curParagraph = {
           lines: [line],
@@ -365,13 +425,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (curParagraph) {
-      finalizeParagraphBox(curParagraph, paragraphBoxes, viewport.width);
+      finalizeParagraphBox(curParagraph, paragraphBoxes);
     }
 
     return paragraphBoxes;
   }
 
-  function finalizeParagraphBox(para, outputList, pageWidth) {
+  function finalizeParagraphBox(para, outputList) {
     const raw = para.text.replace(/-\s+/g, '').replace(/\s+/g, ' ').trim();
     if (!raw) return;
 
@@ -430,7 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 翻译当前页
+  // 翻译当前页 (含 Vision 多模态降级)
   btnTranslatePage.addEventListener('click', async () => {
     if (!pdfDoc) {
       alert('请先选择 PDF 文件');
@@ -448,18 +508,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentSettings = { ...DEFAULT_SETTINGS, ...refreshed.settings };
     }
 
-    if (currentSettings.provider !== 'ollama' && !currentSettings.apiKey) {
-      alert(`请先在设置中填写 ${providerMeta.name} 的 API Key。`);
-      chrome.runtime.openOptionsPage();
-      return;
-    }
-
-    statusText.textContent = `正在提取第 ${targetPageNum} 页段落...`;
+    statusText.textContent = `正在提取第 ${targetPageNum} 页内容...`;
     const boxes = await extractTrueParagraphBoxes(targetPageNum);
 
+    // ⭐️ 核心改进：若文字图层为空（纯图片封面/扫描件），自动触发多模态 Vision 翻译！
     if (boxes.length === 0) {
-      alert(`第 ${targetPageNum} 页未提取到文本（可能是图片封面）。请翻到正文页重试。`);
-      statusText.textContent = '未提取到文本';
+      await translateWithVisionFallback(targetPageNum);
       return;
     }
 
@@ -508,9 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               },
               onError: (err) => {
                 console.warn(`[PDF-Reader] 段落 ${index + 1} 翻译失败:`, err);
-                if (boxEl) {
-                  boxEl.classList.remove('pdf-para-loading');
-                }
+                if (boxEl) boxEl.classList.remove('pdf-para-loading');
                 resolve();
               }
             });
@@ -530,6 +582,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const duration = Math.round(performance.now() - startTime);
     statusText.textContent = `第 ${targetPageNum} 页翻译完成，耗时: ${duration}ms`;
+  }
+
+  // 多模态 Vision 视觉降级翻译
+  async function translateWithVisionFallback(targetPageNum) {
+    statusText.textContent = `第 ${targetPageNum} 页为图片/扫描件，正在启动 Vision 视觉大模型识别翻译...`;
+
+    // 导出左侧 Canvas 为图片 Base64
+    const imageBase64 = canvasLeft.toDataURL('image/jpeg', 0.85);
+
+    // 在右侧生成一个覆盖整页的自适应大容器
+    paraOverlay.innerHTML = '';
+    const visionBox = document.createElement('div');
+    visionBox.className = 'pdf-para-box pdf-para-loading';
+    visionBox.style.left = '30px';
+    visionBox.style.top = '30px';
+    visionBox.style.width = `${canvasRightBg.width - 60}px`;
+    visionBox.style.minHeight = `${canvasRightBg.height - 60}px`;
+    visionBox.style.padding = '24px';
+    visionBox.style.fontSize = '14px';
+    visionBox.style.lineHeight = '1.7';
+    visionBox.style.whiteSpace = 'pre-wrap';
+    paraOverlay.appendChild(visionBox);
+
+    const startTime = performance.now();
+    try {
+      await LLMClient.translateVisionStream({
+        imageBase64,
+        targetLang: currentSettings.targetLang || 'zh-CN',
+        settings: currentSettings,
+        signal: activeAbortController.signal,
+        onChunk: (chunk, fullText) => {
+          visionBox.classList.remove('pdf-para-loading');
+          visionBox.textContent = fullText;
+        },
+        onDone: (finalText) => {
+          visionBox.classList.remove('pdf-para-loading');
+          visionBox.textContent = finalText;
+          const duration = Math.round(performance.now() - startTime);
+          statusText.textContent = `第 ${targetPageNum} 页 Vision 视觉识别翻译完成！耗时: ${duration}ms`;
+        },
+        onError: (err) => {
+          visionBox.classList.remove('pdf-para-loading');
+          visionBox.innerHTML = `<span style="color: #ef4444;">Vision 视觉识别失败: ${err.message}</span>`;
+          statusText.textContent = 'Vision 识别失败';
+        }
+      });
+    } catch (e) {}
   }
 
   // 批量全文翻译
@@ -559,5 +658,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     isBatchTranslating = false;
     btnTranslateAll.textContent = '⚡ 翻译全文';
     statusText.textContent = '全文翻译完成';
+  });
+
+  // ==================== 划词生词气泡与收藏 ====================
+  document.addEventListener('mouseup', async (e) => {
+    // 如果点击在气泡内部，不处理
+    if (vocabBubble.contains(e.target)) return;
+
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+
+    if (text && text.length >= 1 && text.length <= 100 && /^[a-zA-Z\s\-',]+$/.test(text)) {
+      currentSelectedWord = text;
+      showVocabBubble(e.pageX, e.pageY, text);
+    } else {
+      hideVocabBubble();
+    }
+  });
+
+  function showVocabBubble(x, y, word) {
+    vocabWordText.textContent = word;
+    vocabTransText.textContent = '正在查询释义...';
+    vocabBubble.style.left = `${Math.min(window.innerWidth - 300, x + 10)}px`;
+    vocabBubble.style.top = `${y + 15}px`;
+    vocabBubble.classList.add('show');
+
+    // 简单查词
+    LLMClient.translateStream({
+      text: word,
+      targetLang: 'zh-CN',
+      mode: 'fluent',
+      settings: currentSettings,
+      onDone: (res) => {
+        currentSelectedTrans = res;
+        vocabTransText.textContent = res;
+      }
+    });
+  }
+
+  function hideVocabBubble() {
+    vocabBubble.classList.remove('show');
+  }
+
+  btnSaveVocab.addEventListener('click', async () => {
+    if (!currentSelectedWord) return;
+    const ok = await dbInstance.addVocabulary({
+      word: currentSelectedWord,
+      translation: currentSelectedTrans,
+      sourceLang: 'en',
+      targetLang: currentSettings.targetLang || 'zh-CN'
+    });
+    if (ok) {
+      btnSaveVocab.textContent = '✓ 已收藏';
+      setTimeout(() => {
+        btnSaveVocab.textContent = '⭐ 收藏到生词本';
+        hideVocabBubble();
+      }, 1000);
+    }
+  });
+
+  btnCopyVocab.addEventListener('click', () => {
+    if (currentSelectedWord) {
+      navigator.clipboard.writeText(`${currentSelectedWord} : ${currentSelectedTrans}`);
+      btnCopyVocab.textContent = '✓ 已复制';
+      setTimeout(() => btnCopyVocab.textContent = '📋 复制', 1000);
+    }
   });
 });
