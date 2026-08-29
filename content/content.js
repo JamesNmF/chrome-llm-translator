@@ -526,60 +526,67 @@
   });
 
   // ==========================================
-  // 6. YouTube / 网页视频实时双语字幕 (Bilingual Subtitles)
+  // 6. YouTube / 网页视频原生字幕深度接管与自适应大字号替换
   // ==========================================
   function initVideoSubtitleObserver() {
-    let subContainer = null;
     let lastCaptionText = '';
     let subAbortCtrl = null;
-
-    function getOrCreateSubtitleContainer(videoWrapper) {
-      if (subContainer && document.body.contains(subContainer)) return subContainer;
-      subContainer = document.createElement('div');
-      subContainer.id = 'llm-video-subtitles-container';
-      videoWrapper.appendChild(subContainer);
-      return subContainer;
-    }
 
     const captionObserver = new MutationObserver(() => {
       if (currentSettings.enableVideoSubtitles === false) return;
 
-      const ytCaptionSegment = document.querySelector('.ytp-caption-segment');
-      const ytPlayer = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
+      const segments = document.querySelectorAll('.ytp-caption-segment');
+      if (!segments || segments.length === 0) return;
 
-      if (ytCaptionSegment && ytPlayer) {
-        const text = ytCaptionSegment.textContent.trim();
-        if (text && text !== lastCaptionText && text.length >= 2) {
-          lastCaptionText = text;
-          const container = getOrCreateSubtitleContainer(ytPlayer);
-
-          if (subAbortCtrl) subAbortCtrl.abort();
-          subAbortCtrl = new AbortController();
-
-          LLMClient.translateStream({
-            text,
-            targetLang: currentSettings.targetLang || 'zh-CN',
-            mode: 'fluent',
-            settings: currentSettings,
-            signal: subAbortCtrl.signal,
-            onChunk: (chunk, full) => {
-              container.innerHTML = `
-                <div class="llm-video-sub-card">
-                  <div class="llm-sub-translated">${escapeHtml(full)}</div>
-                  <div class="llm-sub-original">${escapeHtml(text)}</div>
-                </div>
-              `;
-            },
-            onDone: (full) => {
-              container.innerHTML = `
-                <div class="llm-video-sub-card">
-                  <div class="llm-sub-translated">${escapeHtml(full)}</div>
-                  <div class="llm-sub-original">${escapeHtml(text)}</div>
-                </div>
-              `;
-            }
-          });
+      // 提取当前完整字幕文本
+      let fullText = '';
+      segments.forEach(seg => {
+        if (!seg.classList.contains('llm-injected')) {
+          fullText += seg.textContent + ' ';
         }
+      });
+      fullText = fullText.trim();
+
+      if (fullText && fullText !== lastCaptionText && fullText.length >= 2) {
+        lastCaptionText = fullText;
+
+        const mainSegment = segments[0];
+        mainSegment.classList.add('llm-injected');
+
+        // 隐藏其他分段
+        for (let i = 1; i < segments.length; i++) {
+          segments[i].style.display = 'none';
+        }
+
+        // 直接在原生字幕节点内部构造大字号双语容器
+        mainSegment.innerHTML = `
+          <div class="llm-yt-sub-wrapper">
+            <div class="llm-yt-zh-text">正在翻译...</div>
+            <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
+          </div>
+        `;
+
+        const zhEl = mainSegment.querySelector('.llm-yt-zh-text');
+
+        if (subAbortCtrl) subAbortCtrl.abort();
+        subAbortCtrl = new AbortController();
+
+        LLMClient.translateStream({
+          text: fullText,
+          targetLang: currentSettings.targetLang || 'zh-CN',
+          mode: 'fluent',
+          settings: currentSettings,
+          signal: subAbortCtrl.signal,
+          onChunk: (chunk, trans) => {
+            if (zhEl) zhEl.textContent = trans;
+          },
+          onDone: (trans) => {
+            if (zhEl) zhEl.textContent = trans;
+          },
+          onError: () => {
+            if (zhEl) zhEl.textContent = fullText;
+          }
+        });
       }
     });
 
