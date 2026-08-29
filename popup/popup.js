@@ -121,15 +121,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  async function openTwinMirrorWorkbench() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const currentUrl = tab?.url && /^https?:\/\//i.test(tab.url) ? tab.url : 'https://en.wikipedia.org/wiki/Main_Page';
-    chrome.tabs.create({ url: chrome.runtime.getURL(`split/mirror.html?url=${encodeURIComponent(currentUrl)}`) });
-  }
-
   btnViewOrigin.addEventListener('click', () => sendWebTranslationCommand('origin'));
   btnViewDual.addEventListener('click', () => sendWebTranslationCommand('dual'));
-  btnViewSide.addEventListener('click', openTwinMirrorWorkbench);
+  btnViewSide.addEventListener('click', () => sendWebTranslationCommand('side_by_side'));
   btnViewTrans.addEventListener('click', () => sendWebTranslationCommand('translation'));
 
   // 3. ⭐️ 核心功能：在 Popup 中直接拖入 PDF 自动跳转至阅读器
