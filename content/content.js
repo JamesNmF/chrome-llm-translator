@@ -734,26 +734,37 @@
       sendResponse({ received: true });
     } else if (request.type === 'TOGGLE_BILINGUAL_PAGE') {
       // 快捷键 Alt+A 切换全网页双语对照 (四态循环)
-      const state = await bilingualEngine.toggleFullPage();
-      if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      if (state === 'side_by_side') {
+      let nextState = 'dual';
+      if (bilingualEngine.state === 'origin') nextState = 'dual';
+      else if (bilingualEngine.state === 'dual') nextState = 'side_by_side';
+      else if (bilingualEngine.state === 'side_by_side') nextState = 'translation';
+      else nextState = 'origin';
+
+      if (nextState === 'side_by_side') {
+        bilingualEngine.setViewState('origin');
         twinMirrorEngine.activate();
       } else {
         twinMirrorEngine.deactivate();
+        await bilingualEngine.setViewState(nextState);
       }
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
-      sendResponse({ state });
+
+      if (floatBallEl) floatBallEl.classList.toggle('active', nextState !== 'origin');
+      showToast(nextState === 'dual' ? '🌐 已开启上下双语对照' : nextState === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : nextState === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      sendResponse({ state: nextState });
     } else if (request.type === 'SET_BILINGUAL_PAGE_VIEW') {
       // 从 Popup 菜单中直接选择：显示原文 / 上下对照 / 左右分栏 / 仅看译文
-      const state = await bilingualEngine.setViewState(request.view);
-      if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      if (state === 'side_by_side') {
+      const targetView = request.view;
+      if (targetView === 'side_by_side') {
+        bilingualEngine.setViewState('origin');
         twinMirrorEngine.activate();
       } else {
         twinMirrorEngine.deactivate();
+        await bilingualEngine.setViewState(targetView);
       }
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
-      sendResponse({ state });
+
+      if (floatBallEl) floatBallEl.classList.toggle('active', targetView !== 'origin');
+      showToast(targetView === 'dual' ? '🌐 已开启上下双语对照' : targetView === 'side_by_side' ? '🪟 已开启双生镜像分屏 (左右同步翻滚)' : targetView === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      sendResponse({ state: targetView });
     }
   });
 
