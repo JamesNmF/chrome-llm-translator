@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSpeakTarget = document.getElementById('btn-speak-target');
 
   const btnOpenOptions = document.getElementById('btn-open-options');
+  const btnOpenTwin = document.getElementById('btn-open-twin');
   const btnOpenDocx = document.getElementById('btn-open-docx');
   const btnOpenPdf = document.getElementById('btn-open-pdf');
   const btnOpenEpub = document.getElementById('btn-open-epub');
@@ -120,9 +121,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  async function openTwinMirrorWorkbench() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentUrl = tab?.url && /^https?:\/\//i.test(tab.url) ? tab.url : 'https://en.wikipedia.org/wiki/Main_Page';
+    chrome.tabs.create({ url: chrome.runtime.getURL(`split/mirror.html?url=${encodeURIComponent(currentUrl)}`) });
+  }
+
   btnViewOrigin.addEventListener('click', () => sendWebTranslationCommand('origin'));
   btnViewDual.addEventListener('click', () => sendWebTranslationCommand('dual'));
-  btnViewSide.addEventListener('click', () => sendWebTranslationCommand('side_by_side'));
+  btnViewSide.addEventListener('click', openTwinMirrorWorkbench);
   btnViewTrans.addEventListener('click', () => sendWebTranslationCommand('translation'));
 
   // 3. ⭐️ 核心功能：在 Popup 中直接拖入 PDF 自动跳转至阅读器
@@ -405,11 +412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (btnOpenTwin) {
-    btnOpenTwin.addEventListener('click', async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentUrl = tab?.url && /^https?:\/\//i.test(tab.url) ? tab.url : 'https://en.wikipedia.org/wiki/Main_Page';
-      chrome.tabs.create({ url: chrome.runtime.getURL(`split/mirror.html?url=${encodeURIComponent(currentUrl)}`) });
-    });
+    btnOpenTwin.addEventListener('click', openTwinMirrorWorkbench);
   }
 
   if (btnOpenDocx) {
