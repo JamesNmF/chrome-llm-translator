@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSpeakTarget = document.getElementById('btn-speak-target');
 
   const btnOpenOptions = document.getElementById('btn-open-options');
+  const btnOpenDocx = document.getElementById('btn-open-docx');
   const btnOpenPdf = document.getElementById('btn-open-pdf');
   const btnOpenEpub = document.getElementById('btn-open-epub');
   const btnHistory = document.getElementById('btn-history');
@@ -398,6 +399,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCharCount();
       });
       historyList.appendChild(div);
+    });
+  }
+
+  if (btnOpenDocx) {
+    btnOpenDocx.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('docx/builder.html') });
     });
   }
 

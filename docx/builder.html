@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word (.docx) 双语文档制作器 - LLM 翻译官</title>
+  <link rel="stylesheet" href="builder.css">
+  <script src="../lib/jszip.min.js"></script>
+</head>
+<body>
+  <div class="app-root">
+    <!-- 顶部工具栏 -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <img src="../icons/icon48.png" alt="Logo" class="logo">
+        <span class="title">Word (.docx) 双语文档制作器</span>
+        <button class="btn btn-secondary" id="btn-select-file">
+          <span>📂 打开 Word 文档</span>
+        </button>
+        <input type="file" id="file-input" accept=".docx" style="display: none;">
+      </div>
+
+      <div class="topbar-right">
+        <div class="mode-select-group">
+          <label for="docx-mode">输出格式:</label>
+          <select id="docx-mode" class="select-control">
+            <option value="dual" selected>📑 双语对照 (英文下紧跟中文)</option>
+            <option value="replace">✨ 仅译文替换 (原样保留格式并替换为中文)</option>
+          </select>
+        </div>
+
+        <span class="badge" id="current-model-tag">DeepSeek</span>
+        
+        <button class="btn btn-primary" id="btn-start-translate" disabled>
+          <span>⚡ 开始翻译</span>
+        </button>
+        <button class="btn btn-success" id="btn-download" disabled>
+          <span>📥 导出 Word 文档</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 主体区域 -->
+    <main class="main-body">
+      <!-- 拖拽上传遮罩 -->
+      <div class="drop-overlay" id="drop-overlay">
+        <div class="drop-card">
+          <div class="drop-icon">📝</div>
+          <h2>选择或拖入 Word (.docx) 文档</h2>
+          <p>纯本地解包与排版保留，自动在各段落下方生成双语对照，支持标题、列表与表格</p>
+          <button class="btn btn-primary btn-large" id="btn-open-dialog">选择本地 .docx 文件</button>
+        </div>
+      </div>
+
+      <!-- 进度条面板 -->
+      <div class="progress-bar-wrap" id="progress-wrap" style="display: none;">
+        <div class="progress-info">
+          <span id="progress-text">正在翻译段落...</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- 文档段落双语实时预览流 -->
+      <div class="preview-container" id="preview-container">
+        <div class="empty-hint">请先打开一个 .docx 文件以预览内容</div>
+      </div>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="bottom-bar">
+      <div class="status-left">
+        <span class="status-pulse"></span>
+        <span id="status-text">就绪</span>
+      </div>
+      <div class="status-right">
+        <span>💡 采用纯前端解构 XML 结构，100% 保留样式、字体与排版</span>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="builder.js"></script>
+</body>
+</html>

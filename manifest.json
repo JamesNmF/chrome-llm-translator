@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LLM 翻译官 - AI Translator",
-  "version": "1.3.0",
-  "description": "基于 DeepSeek / OpenAI / Claude / Gemini / Ollama 的全网页双语对照、PDF 论文双语阅读、视频字幕与 EPUB 电子书双语制作助手",
+  "version": "1.4.0",
+  "description": "基于 DeepSeek / OpenAI / Claude / Gemini / Ollama 的全网页双语对照、Word/PDF/EPUB 双语制作与视频字幕助手",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -50,7 +50,8 @@
         "content/*",
         "icons/*",
         "pdf/*",
-        "epub/*"
+        "epub/*",
+        "docx/*"
       ],
       "matches": [
         "<all_urls>"
