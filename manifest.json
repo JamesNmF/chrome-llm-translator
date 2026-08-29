@@ -24,7 +24,8 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "activeTab"
+    "activeTab",
+    "management"
   ],
   "host_permissions": [
     "<all_urls>"

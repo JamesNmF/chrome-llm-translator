@@ -4,6 +4,7 @@
  */
 
 import { DEFAULT_SETTINGS } from '../lib/constants.js';
+import './hot-reload.js';
 
 // 初始化安装
 chrome.runtime.onInstalled.addListener(async (details) => {
