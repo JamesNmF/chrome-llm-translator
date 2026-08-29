@@ -15,7 +15,12 @@
   let activeTranslation = '';
 
   // 初始化双语引擎
-  const bilingualEngine = new BilingualEngine({ settings: currentSettings });
+  const bilingualEngine = new BilingualEngine({
+    settings: currentSettings,
+    onUpdate: () => {
+      if (isSplitOpen) renderSplitCards();
+    }
+  });
 
   // 读取初始配置
   const stored = await chrome.storage.sync.get('settings');
@@ -150,7 +155,201 @@
   });
 
   // ==========================================
-  // 3. 划词翻译与悬浮卡片 (Shadow DOM)
+  // 3. 🪟 网页真·左右分屏阅读器系统 (Split Screen Dual View)
+  // ==========================================
+  let splitPaneEl = null;
+  let isSplitOpen = false;
+  let splitWidthVw = 45;
+  let isSyncScrollEnabled = true;
+  let isSyncing = false;
+
+  function initSplitPane() {
+    if (splitPaneEl) return;
+
+    splitPaneEl = document.createElement('div');
+    splitPaneEl.className = 'llm-split-pane';
+    splitPaneEl.style.width = `${splitWidthVw}vw`;
+    splitPaneEl.innerHTML = `
+      <div class="llm-split-resizer" id="split-resizer" title="左右拖拽调节分屏宽度"></div>
+      <div class="llm-split-header">
+        <div class="llm-split-title-group">
+          <span class="llm-split-title">🪟 左右分屏对照</span>
+          <span class="llm-split-sync-badge" id="split-sync-btn" title="点击开启/关闭左右同步滚动" style="cursor: pointer;">
+            🔗 同步滚动: 开
+          </span>
+        </div>
+        <div class="llm-split-actions">
+          <button class="llm-split-btn" id="split-copy-all" title="复制右侧全部中文译文">📋 复制全文</button>
+          <button class="llm-split-close" id="split-close-btn" title="关闭分屏">✕</button>
+        </div>
+      </div>
+      <div class="llm-split-body" id="split-body">
+        <div style="text-align: center; color: #94a3b8; padding: 40px 0;">
+          正在同步提取并流式翻译当前页面内容...
+        </div>
+      </div>
+    `;
+
+    shadowRoot.appendChild(splitPaneEl);
+
+    // 绑定关闭按钮
+    const btnClose = splitPaneEl.querySelector('#split-close-btn');
+    btnClose.addEventListener('click', () => {
+      closeSplitPane();
+      bilingualEngine.setViewState('origin');
+      showToast('📄 已退出分屏模式');
+    });
+
+    // 绑定同步滚动开关
+    const btnSync = splitPaneEl.querySelector('#split-sync-btn');
+    btnSync.addEventListener('click', () => {
+      isSyncScrollEnabled = !isSyncScrollEnabled;
+      btnSync.textContent = isSyncScrollEnabled ? '🔗 同步滚动: 开' : '⛓️ 同步滚动: 关';
+      btnSync.style.color = isSyncScrollEnabled ? '#10b981' : '#94a3b8';
+    });
+
+    // 绑定复制全文
+    const btnCopyAll = splitPaneEl.querySelector('#split-copy-all');
+    btnCopyAll.addEventListener('click', () => {
+      const texts = [];
+      const cards = splitPaneEl.querySelectorAll('.llm-split-trans-text');
+      cards.forEach(c => {
+        const t = c.textContent.trim();
+        if (t && !t.includes('翻译中') && !t.includes('正在扫描')) texts.push(t);
+      });
+      if (texts.length > 0) {
+        navigator.clipboard.writeText(texts.join('\n\n'));
+        showToast('已复制分屏全部译文到剪贴板');
+      }
+    });
+
+    // 绑定拖拽调节宽度
+    const resizer = splitPaneEl.querySelector('#split-resizer');
+    let isDragging = false;
+
+    resizer.addEventListener('mousedown', () => {
+      isDragging = true;
+      resizer.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const newWidthPx = window.innerWidth - e.clientX;
+      let newWidthVw = (newWidthPx / window.innerWidth) * 100;
+      newWidthVw = Math.max(25, Math.min(75, newWidthVw));
+      splitWidthVw = newWidthVw;
+      splitPaneEl.style.width = `${newWidthVw}vw`;
+      if (isSplitOpen) {
+        document.documentElement.style.marginRight = `${newWidthVw}vw`;
+        document.documentElement.style.width = `calc(100vw - ${newWidthVw}vw)`;
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        resizer.classList.remove('dragging');
+        document.body.style.userSelect = '';
+      }
+    });
+
+    // 绑定双向同步滚动
+    const splitBody = splitPaneEl.querySelector('#split-body');
+
+    window.addEventListener('scroll', () => {
+      if (!isSplitOpen || !isSyncScrollEnabled || isSyncing) return;
+      isSyncing = true;
+      const maxWinScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxWinScroll > 0) {
+        const ratio = window.scrollY / maxWinScroll;
+        const maxBodyScroll = splitBody.scrollHeight - splitBody.clientHeight;
+        splitBody.scrollTop = ratio * maxBodyScroll;
+      }
+      setTimeout(() => { isSyncing = false; }, 40);
+    });
+
+    splitBody.addEventListener('scroll', () => {
+      if (!isSplitOpen || !isSyncScrollEnabled || isSyncing) return;
+      isSyncing = true;
+      const maxBodyScroll = splitBody.scrollHeight - splitBody.clientHeight;
+      if (maxBodyScroll > 0) {
+        const ratio = splitBody.scrollTop / maxBodyScroll;
+        const maxWinScroll = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo({ top: ratio * maxWinScroll, behavior: 'auto' });
+      }
+      setTimeout(() => { isSyncing = false; }, 40);
+    });
+  }
+
+  function openSplitPane() {
+    initSplitPane();
+    isSplitOpen = true;
+    splitPaneEl.classList.add('open');
+
+    // 网页平滑收缩到左半屏，100% 原始排版、按钮完好
+    document.documentElement.style.transition = 'margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+    document.documentElement.style.marginRight = `${splitWidthVw}vw`;
+    document.documentElement.style.width = `calc(100vw - ${splitWidthVw}vw)`;
+    document.documentElement.style.overflowX = 'hidden';
+
+    renderSplitCards();
+  }
+
+  function closeSplitPane() {
+    if (!splitPaneEl) return;
+    isSplitOpen = false;
+    splitPaneEl.classList.remove('open');
+    document.documentElement.style.marginRight = '';
+    document.documentElement.style.width = '';
+    document.documentElement.style.overflowX = '';
+  }
+
+  function renderSplitCards() {
+    if (!splitPaneEl) return;
+    const splitBody = splitPaneEl.querySelector('#split-body');
+    if (!splitBody) return;
+
+    if (bilingualEngine.translatedMap.size === 0) {
+      splitBody.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 40px 0;">正在扫描并翻译页面文字...</div>';
+      return;
+    }
+
+    splitBody.innerHTML = '';
+    let cardIdx = 0;
+    bilingualEngine.translatedMap.forEach((record, el) => {
+      const card = document.createElement('div');
+      card.className = 'llm-split-card';
+      card.id = `split-card-${cardIdx++}`;
+      card.innerHTML = `
+        <div class="llm-split-card-header">
+          <span>${el.tagName}</span>
+          <span>点击对齐原文</span>
+        </div>
+        <div class="llm-split-origin-hint">${escapeHtml(record.originText)}</div>
+        <div class="llm-split-trans-text ${record.transText ? '' : 'translating'}">${escapeHtml(record.transText || '正在翻译中...')}</div>
+      `;
+
+      card.addEventListener('click', () => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.querySelectorAll('.llm-focus-target').forEach(e => e.classList.remove('llm-focus-target'));
+        el.classList.add('llm-focus-target');
+        setTimeout(() => el.classList.remove('llm-focus-target'), 2000);
+      });
+
+      card.addEventListener('mouseenter', () => {
+        el.classList.add('llm-focus-target');
+      });
+      card.addEventListener('mouseleave', () => {
+        el.classList.remove('llm-focus-target');
+      });
+
+      splitBody.appendChild(card);
+    });
+  }
+
+  // ==========================================
+  // 4. 划词翻译与悬浮卡片 (Shadow DOM)
   // ==========================================
   function removeTriggerBtn() {
     if (triggerBtn) {
@@ -533,13 +732,23 @@
       // 快捷键 Alt+A 切换全网页双语对照 (四态循环)
       const state = await bilingualEngine.toggleFullPage();
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已切换为左右分栏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      if (state === 'side_by_side') {
+        openSplitPane();
+      } else {
+        closeSplitPane();
+      }
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启左右分屏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     } else if (request.type === 'SET_BILINGUAL_PAGE_VIEW') {
       // 从 Popup 菜单中直接选择：显示原文 / 上下对照 / 左右分栏 / 仅看译文
       const state = await bilingualEngine.setViewState(request.view);
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已切换为左右分栏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      if (state === 'side_by_side') {
+        openSplitPane();
+      } else {
+        closeSplitPane();
+      }
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已开启左右分屏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     }
   });
