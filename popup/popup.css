@@ -448,8 +448,8 @@ body {
 
 .web-view-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
 }
 
 .view-btn {

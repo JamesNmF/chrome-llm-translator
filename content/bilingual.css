@@ -79,6 +79,31 @@ h6 + .llm-bilingual-wrapper {
   display: block !important;
 }
 
+/* 🪟 左右双栏对照模式 (Side-by-Side Dual Column) */
+[data-llm-state="side_by_side"] .llm-bilingual-wrapper {
+  display: inline-block !important;
+}
+
+[data-llm-state="side_by_side"] [data-llm-processed="1"] {
+  display: inline-block !important;
+  width: 48% !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  margin-right: 2% !important;
+  opacity: 0.85;
+}
+
+[data-llm-state="side_by_side"] [data-llm-processed="1"] + .llm-bilingual-wrapper {
+  display: inline-block !important;
+  width: 49% !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  border-left: 2.5px solid #6366f1 !important;
+  padding-left: 10px !important;
+  margin-top: 0 !important;
+  color: inherit !important;
+}
+
 /* =========================================================
    3. 五大双语主题 (完全自适应原网页字体与深色/浅色背景)
    ========================================================= */

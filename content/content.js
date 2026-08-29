@@ -530,16 +530,16 @@
       }
       sendResponse({ received: true });
     } else if (request.type === 'TOGGLE_BILINGUAL_PAGE') {
-      // 快捷键 Alt+A 切换全网页双语对照
+      // 快捷键 Alt+A 切换全网页双语对照 (四态循环)
       const state = await bilingualEngine.toggleFullPage();
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      showToast(state === 'dual' ? '🌐 已开启全网页双语对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已切换为左右分栏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     } else if (request.type === 'SET_BILINGUAL_PAGE_VIEW') {
-      // 从 Popup 菜单中直接选择：显示原文 / 双语对照 / 仅看译文
+      // 从 Popup 菜单中直接选择：显示原文 / 上下对照 / 左右分栏 / 仅看译文
       const state = await bilingualEngine.setViewState(request.view);
       if (floatBallEl) floatBallEl.classList.toggle('active', state !== 'origin');
-      showToast(state === 'dual' ? '🌐 已开启全网页双语对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
+      showToast(state === 'dual' ? '🌐 已开启上下双语对照' : state === 'side_by_side' ? '🪟 已切换为左右分栏对照' : state === 'translation' ? '✨ 已切换为仅显示译文' : '📄 已还原网页原文');
       sendResponse({ state });
     }
   });

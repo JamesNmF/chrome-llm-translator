@@ -88,9 +88,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     targetLangSelect.appendChild(opt);
   });
 
-  // 2. 🌐 当前网页沉浸式翻译控制 (显示原文 / 双语对照 / 仅看译文)
+  // 2. 🌐 当前网页沉浸式翻译控制 (显示原文 / 上下对照 / 左右分栏 / 仅看译文)
   const btnViewOrigin = document.getElementById('btn-view-origin');
   const btnViewDual = document.getElementById('btn-view-dual');
+  const btnViewSide = document.getElementById('btn-view-side');
   const btnViewTrans = document.getElementById('btn-view-trans');
   const webPageState = document.getElementById('web-page-state');
 
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       updateWebViewButtons(viewMode);
       if (webPageState) {
-        webPageState.textContent = viewMode === 'origin' ? '已显示原文' : viewMode === 'dual' ? '双语对照中' : '仅显示译文';
+        webPageState.textContent = viewMode === 'origin' ? '已显示原文' : viewMode === 'dual' ? '上下对照中' : viewMode === 'side_by_side' ? '左右分栏中' : '仅显示译文';
       }
     } catch (e) {
       if (webPageState) webPageState.textContent = '请在常规网页使用';
@@ -114,13 +115,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function updateWebViewButtons(activeView) {
-    [btnViewOrigin, btnViewDual, btnViewTrans].forEach(btn => {
+    [btnViewOrigin, btnViewDual, btnViewSide, btnViewTrans].forEach(btn => {
       if (btn) btn.classList.toggle('active', btn.dataset.view === activeView);
     });
   }
 
   btnViewOrigin.addEventListener('click', () => sendWebTranslationCommand('origin'));
   btnViewDual.addEventListener('click', () => sendWebTranslationCommand('dual'));
+  btnViewSide.addEventListener('click', () => sendWebTranslationCommand('side_by_side'));
   btnViewTrans.addEventListener('click', () => sendWebTranslationCommand('translation'));
 
   // 3. ⭐️ 核心功能：在 Popup 中直接拖入 PDF 自动跳转至阅读器
