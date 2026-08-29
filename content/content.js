@@ -733,11 +733,14 @@
       }
       sendResponse({ received: true });
     } else if (request.type === 'TOGGLE_BILINGUAL_PAGE') {
-      // 快捷键 Alt+A 切换全网页双语对照 (四态循环)
+      // 快捷键 Alt+A 切换全网页双语对照 (四态循环: 原文 -> 上下对照 -> 双生分屏 -> 仅看译文 -> 原文)
+      let cur = bilingualEngine.state;
+      if (twinMirrorEngine.isActive) cur = 'side_by_side';
+
       let nextState = 'dual';
-      if (bilingualEngine.state === 'origin') nextState = 'dual';
-      else if (bilingualEngine.state === 'dual') nextState = 'side_by_side';
-      else if (bilingualEngine.state === 'side_by_side') nextState = 'translation';
+      if (cur === 'origin') nextState = 'dual';
+      else if (cur === 'dual') nextState = 'side_by_side';
+      else if (cur === 'side_by_side') nextState = 'translation';
       else nextState = 'origin';
 
       if (nextState === 'side_by_side') {
