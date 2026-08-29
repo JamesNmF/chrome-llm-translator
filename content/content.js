@@ -772,21 +772,94 @@
   });
 
   // ==========================================
-  // 6. YouTube / 网页视频原生字幕深度接管与毫秒级极速流式翻译
+  // 6. YouTube / 网页视频原生字幕：全量预拉取 + 零延迟预翻译 + 拒绝占位
   // ==========================================
   function initVideoSubtitleObserver() {
     let lastCaptionText = '';
     let subAbortCtrl = null;
     let debounceTimer = null;
     const subtitleMemCache = new Map();
+    let isPrefetching = false;
 
+    // 🚀 核心 1：自动预先拉取接下来整段视频的字幕并后台预翻译 (Lookahead Pre-translation)
+    async function tryPreloadFullVideoCaptions() {
+      if (isPrefetching || !window.location.hostname.includes('youtube.com')) return;
+      
+      const videoId = new URLSearchParams(window.location.search).get('v');
+      if (!videoId) return;
+
+      isPrefetching = true;
+      try {
+        // 尝试从当前 YouTube 页面拉取原生字幕轨
+        const resp = await fetch(`https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=json3`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.events && data.events.length > 0) {
+            const rawSubs = data.events
+              .filter(e => e.segs && e.segs.length > 0)
+              .map(e => e.segs.map(s => s.utf8).join('').trim())
+              .filter(t => t.length >= 2 && !/^[\d\s\p{P}]+$/u.test(t));
+
+            // 将所有字幕提前打包送给大模型后台静默批量预翻译
+            batchPreTranslateSubtitles(rawSubs);
+          }
+        }
+      } catch (err) {
+        // 降级使用实时视口探针
+      }
+    }
+
+    async function batchPreTranslateSubtitles(subList) {
+      const uniqueSubs = Array.from(new Set(subList)).filter(s => !subtitleMemCache.has(s));
+      const targetLang = currentSettings.targetLang || 'zh-CN';
+
+      let cursor = 0;
+      const batchSize = 15;
+
+      while (cursor < uniqueSubs.length && cursor < 120) { // 预先翻译前 120 句 (覆盖 5~10 分钟)
+        const batch = uniqueSubs.slice(cursor, cursor + batchSize);
+        cursor += batchSize;
+
+        const combinedPrompt = batch.map((text, i) => `[S${i + 1}] ${text}`).join('\n\n');
+        try {
+          await new Promise((resolve) => {
+            LLMClient.translateStream({
+              text: combinedPrompt,
+              targetLang,
+              mode: 'fluent',
+              settings: currentSettings,
+              onDone: (responseText) => {
+                const regex = /\[S(\d+)\]\s*([\s\S]*?)(?=(?:\[S\d+\]|$))/g;
+                let match;
+                while ((match = regex.exec(responseText)) !== null) {
+                  const idx = parseInt(match[1], 10) - 1;
+                  if (batch[idx]) {
+                    subtitleMemCache.set(batch[idx], match[2].trim());
+                  }
+                }
+                resolve();
+              },
+              onError: () => resolve()
+            });
+          });
+        } catch (e) {}
+      }
+    }
+
+    // 页面 URL 改变时重新预拉取字幕
+    window.addEventListener('yt-navigate-finish', () => {
+      isPrefetching = false;
+      setTimeout(tryPreloadFullVideoCaptions, 1000);
+    });
+    setTimeout(tryPreloadFullVideoCaptions, 1500);
+
+    // 🚀 核心 2：原生字幕实时捕获与零延迟平滑渲染 (绝不展示“正在翻译”)
     const captionObserver = new MutationObserver(() => {
       if (currentSettings.enableVideoSubtitles === false) return;
 
       const segments = document.querySelectorAll('.ytp-caption-segment');
       if (!segments || segments.length === 0) return;
 
-      // 提取当前字幕文本 (排除插件已注入的内容)
       let rawText = '';
       segments.forEach(seg => {
         if (!seg.classList.contains('llm-injected')) {
@@ -799,12 +872,11 @@
       const mainSegment = segments[0];
       mainSegment.classList.add('llm-injected');
 
-      // 隐藏其他多余原生分段
       for (let i = 1; i < segments.length; i++) {
         segments[i].style.display = 'none';
       }
 
-      // 如果内存缓存已命中，0ms 瞬间渲染！
+      // 1. 如果已预翻译命中：0.00ms 纯零延迟瞬间呈现！
       if (subtitleMemCache.has(fullText)) {
         lastCaptionText = fullText;
         const cachedTrans = subtitleMemCache.get(fullText);
@@ -817,24 +889,20 @@
         return;
       }
 
-      // 智能打字机防抖：避免说话过程中每个单词都打断重发 API
+      // 2. 如果未命中预翻译：先干净显示原文，绝对不显示“正在翻译...”！
+      mainSegment.innerHTML = `
+        <div class="llm-yt-sub-wrapper">
+          <div class="llm-yt-en-text" style="font-size: 1.15em; font-weight: 600;">${escapeHtml(fullText)}</div>
+        </div>
+      `;
+
       if (debounceTimer) clearTimeout(debounceTimer);
 
-      // 如果遇到了标点句末，快速触发；否则等待 180ms 聚合整句
       const isSentenceEnd = /[.?!，。？！]\s*$/.test(fullText);
-      const delay = isSentenceEnd ? 60 : 180;
+      const delay = isSentenceEnd ? 50 : 150;
 
       debounceTimer = setTimeout(() => {
         lastCaptionText = fullText;
-
-        mainSegment.innerHTML = `
-          <div class="llm-yt-sub-wrapper">
-            <div class="llm-yt-zh-text">正在翻译...</div>
-            <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
-          </div>
-        `;
-
-        const zhEl = mainSegment.querySelector('.llm-yt-zh-text');
 
         if (subAbortCtrl) subAbortCtrl.abort();
         subAbortCtrl = new AbortController();
@@ -846,18 +914,30 @@
           settings: currentSettings,
           signal: subAbortCtrl.signal,
           onChunk: (chunk, trans) => {
-            if (zhEl) zhEl.textContent = trans;
+            // 流式翻译到达时，平滑注入中文大字，优雅过渡
+            mainSegment.innerHTML = `
+              <div class="llm-yt-sub-wrapper">
+                <div class="llm-yt-zh-text">${escapeHtml(trans)}</div>
+                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
+              </div>
+            `;
           },
           onDone: (trans) => {
-            if (zhEl) zhEl.textContent = trans;
+            mainSegment.innerHTML = `
+              <div class="llm-yt-sub-wrapper">
+                <div class="llm-yt-zh-text">${escapeHtml(trans)}</div>
+                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
+              </div>
+            `;
             subtitleMemCache.set(fullText, trans);
-            if (subtitleMemCache.size > 200) {
-              const firstKey = subtitleMemCache.keys().next().value;
-              subtitleMemCache.delete(firstKey);
-            }
           },
           onError: () => {
-            if (zhEl) zhEl.textContent = fullText;
+            // 失败时保持原文
+            mainSegment.innerHTML = `
+              <div class="llm-yt-sub-wrapper">
+                <div class="llm-yt-en-text">${escapeHtml(fullText)}</div>
+              </div>
+            `;
           }
         });
       }, delay);
